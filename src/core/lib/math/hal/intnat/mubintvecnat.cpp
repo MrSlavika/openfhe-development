@@ -109,7 +109,7 @@ template <class IntegerType>
 void NativeVectorT<IntegerType>::SwitchModulus(const IntegerType& modulus) {
     // TODO: #ifdef NATIVEINT_BARRET_MOD
     auto size{m_data.size()};
-    auto halfQ{m_modulus.m_value >> 1};
+    auto halfQ{(m_modulus.m_value+1) >> 1};
     auto om{m_modulus.m_value};
     this->NativeVectorT::SetModulus(modulus);
     auto nm{modulus.m_value};
@@ -117,7 +117,7 @@ void NativeVectorT<IntegerType>::SwitchModulus(const IntegerType& modulus) {
         auto diff{nm - om};
         for (size_t i = 0; i < size; ++i) {
             auto& v = m_data[i].m_value;
-            if (v > halfQ)
+            if (v >= halfQ)
                 v = v + diff;
         }
     }
@@ -125,7 +125,7 @@ void NativeVectorT<IntegerType>::SwitchModulus(const IntegerType& modulus) {
         auto diff{nm - (om % nm)};
         for (size_t i = 0; i < size; ++i) {
             auto& v = m_data[i].m_value;
-            if (v > halfQ)
+            if (v >= halfQ)
                 v = v + diff;
             if (v >= nm)
                 v = v % nm;
