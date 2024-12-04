@@ -927,6 +927,7 @@ public:
    * @return is the result of the modulus subtraction operation.
    */
     NativeIntegerT& ModSubFastEq(const NativeIntegerT& b, const NativeIntegerT& modulus) {
+
         if (m_value < b.m_value)
             return *this = m_value + modulus.m_value - b.m_value;
         return *this = m_value - b.m_value;

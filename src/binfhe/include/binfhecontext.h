@@ -108,6 +108,29 @@ public:
    * Should be used with care (only for advanced users familiar with LWE
    * parameter selection).
    *
+   * @param n lattice parameter for additive LWE scheme
+   * @param N ring dimension for RingGSW/RLWE used in bootstrapping
+   * @param &q modulus for additive LWE
+   * @param &Q modulus for RingGSW/RLWE used in bootstrapping
+   * @param std standard deviation
+   * @param baseKS the base used for key switching
+   * @param baseG the gadget base used in bootstrapping
+   * @param baseR the base used for refreshing
+   * @param method the bootstrapping method (DM or CGGI)
+   * @return creates the cryptocontext
+   */
+    void GenerateBinFHEContext(uint32_t n, uint32_t N, const NativeInteger& q, const NativeInteger& Q,
+                               const NativeInteger& qKS, double std, uint32_t baseKS, uint32_t baseG, uint32_t baseR,
+                               uint32_t basePK, const NativeInteger& qfrom, uint32_t baseG0, uint32_t baseGMV,
+                               uint32_t beta_precise, uint32_t p, const std::vector<uint32_t>& baseGs,
+                               uint32_t pkkey_flags, bool multithread, const NativeInteger& P, uint32_t baseRL,
+                               BINFHE_METHOD method = GINX);
+
+    /**
+   * Creates a crypto context using custom parameters.
+   * Should be used with care (only for advanced users familiar with LWE
+   * parameter selection).
+   *
    * @param set the parameter set: TOY, MEDIUM, STD128, STD192, STD256 with variants, see binfhe_constants.h
    * @param arbFunc whether need to evaluate an arbitrary function using functional bootstrapping
    * @param logQ log(input ciphertext modulus)
@@ -116,9 +139,12 @@ public:
    * @param timeOptimization whether to use dynamic bootstrapping technique
    * @return creates the cryptocontext
    */
+    void GenerateBinFHEContext(BINFHE_PARAMSET set, bool arbFunc, uint32_t logQ = 11, int64_t N = 0,
+                               BINFHE_METHOD method = GINX, bool timeOptimization = false, uint32_t B_g = 0);
+    /*
     void GenerateBinFHEContext(BINFHE_PARAMSET set, bool arbFunc, uint32_t logQ = 11, uint32_t N = 0,
-                               BINFHE_METHOD method = GINX, bool timeOptimization = false);
-
+                               BINFHE_METHOD method = GINX, bool timeOptimization = false, uint32_t B_g = 0);
+*/
     /**
    * Creates a crypto context using predefined parameters sets. Recommended for
    * most users.
@@ -329,6 +355,161 @@ public:
    * @return a shared pointer to the resulting ciphertext
    */
     LWECiphertext EvalFunc(ConstLWECiphertext& ct, const std::vector<NativeInteger>& LUT) const;
+    /**
+   * Evaluate an arbitrary function (using new format of LUT)
+   *
+   * @param ct1 ciphertext to be bootstrapped
+   * @param LUT the look-up table of the to-be-evaluated function
+   * @param deltain input scaling factor of CKKS ciphertext
+   * @param deltaout output scaling factor of CKKS ciphertext
+   * @param f real function to be evaluated on CKKS ciphertext
+   * @return a shared pointer to the resulting ciphertext
+   */
+    LWECiphertext EvalFuncTest(ConstLWECiphertext ct, const std::vector<NativeInteger>& LUT, double deltain = 0,
+                               double deltaout = 0, NativeInteger qout = 0, double (*f)(double m) = nullptr) const;
+
+    /**
+   * Evaluate an arbitrary function using FDFB-Compress
+   *
+   * @param ct1 ciphertext to be bootstrapped
+   * @param LUT the look-up table of the to-be-evaluated function
+   * @param deltain input scaling factor of CKKS ciphertext
+   * @param deltaout output scaling factor of CKKS ciphertext
+   * @param f real function to be evaluated on CKKS ciphertext
+   * @return a shared pointer to the resulting ciphertext
+   */
+    LWECiphertext EvalFuncCompress(ConstLWECiphertext ct, const std::vector<NativeInteger>& LUT, double deltain = 0,
+                                   double deltaout = 0, NativeInteger qout = 0, double (*f)(double m) = nullptr) const;
+
+    /**
+   * Evaluate an arbitrary function using FDFB-CancelSign
+   *
+   * @param ct1 ciphertext to be bootstrapped
+   * @param LUT the look-up table of the to-be-evaluated function
+   * @param deltain input scaling factor of CKKS ciphertext
+   * @param deltaout output scaling factor of CKKS ciphertext
+   * @param f real function to be evaluated on CKKS ciphertext
+   * @return a shared pointer to the resulting ciphertext
+   */
+    LWECiphertext EvalFuncCancelSign(ConstLWECiphertext ct, const std::vector<NativeInteger>& LUT, double deltain = 0,
+                                     double deltaout = 0, NativeInteger qout = 0,
+                                     double (*f)(double m) = nullptr) const;
+
+    /**
+   * Evaluate an arbitrary function using FDFB-Select
+   *
+   * @param ct1 ciphertext to be bootstrapped
+   * @param LUT the look-up table of the to-be-evaluated function
+   * @param deltain input scaling factor of CKKS ciphertext
+   * @param deltaout output scaling factor of CKKS ciphertext
+   * @param f real function to be evaluated on CKKS ciphertext
+   * @param use_multi_value_bts when set to true, use multi-value BTS to decrease running time
+   * @return a shared pointer to the resulting ciphertext
+   */
+    LWECiphertext EvalFuncSelect(ConstLWECiphertext ct, const std::vector<NativeInteger>& LUT, double deltain = 0,
+                                 double deltaout = 0, NativeInteger qout = 0, double (*f)(double m) = nullptr,
+                                 uint32_t baseG_small = 1 << 27) const;
+
+    /**
+   * Evaluate an arbitrary function using FDFB-SelectAlt
+   *
+   * @param ct1 ciphertext to be bootstrapped
+   * @param LUT the look-up table of the to-be-evaluated function
+   * @param deltain input scaling factor of CKKS ciphertext
+   * @param deltaout output scaling factor of CKKS ciphertext
+   * @param f real function to be evaluated on CKKS ciphertext
+   * @param use_multi_value_bts when set to true, use multi-value BTS to decrease running time
+   * @return a shared pointer to the resulting ciphertext
+   */
+    LWECiphertext EvalFuncSelectAlt(ConstLWECiphertext ct, const std::vector<NativeInteger>& LUT, double deltain = 0,
+                                    double deltaout = 0, NativeInteger qout = 0, double (*f)(double m) = nullptr,
+                                    uint32_t baseG_small = 1 << 27) const;
+
+    /**
+   * Evaluate an arbitrary function using FDFB-PreSelect
+   *
+   * @param ct1 ciphertext to be bootstrapped
+   * @param LUT the look-up table of the to-be-evaluated function
+   * @param deltain input scaling factor of CKKS ciphertext
+   * @param deltaout output scaling factor of CKKS ciphertext
+   * @param f real function to be evaluated on CKKS ciphertext
+   * @return a shared pointer to the resulting ciphertext
+   */
+    LWECiphertext EvalFuncPreSelect(ConstLWECiphertext ct, const std::vector<NativeInteger>& LUT, double deltain = 0,
+                                    double deltaout = 0, NativeInteger qout = 0, double (*f)(double m) = nullptr,
+                                    NativeInteger p_mid = 0) const;
+
+    /**
+   * Evaluate an arbitrary function using FDFB [KS21]
+   *
+   * @param ct1 ciphertext to be bootstrapped
+   * @param LUT the look-up table of the to-be-evaluated function
+   * @param deltain input scaling factor of CKKS ciphertext
+   * @param deltaout output scaling factor of CKKS ciphertext
+   * @param f real function to be evaluated on CKKS ciphertext
+   * @return a shared pointer to the resulting ciphertext
+   */
+    LWECiphertext EvalFuncKS21(ConstLWECiphertext ct, const std::vector<NativeInteger>& LUT, double deltain = 0,
+                               double deltaout = 0, NativeInteger qout = 0, double (*f)(double m) = nullptr) const;
+
+    /**
+   * Evaluate an arbitrary function using Comp[CZB+22]
+   *
+   * @param ct1 ciphertext to be bootstrapped
+   * @param LUT the look-up table of the to-be-evaluated function
+   * @param deltain input scaling factor of CKKS ciphertext
+   * @param deltaout output scaling factor of CKKS ciphertext
+   * @param f real function to be evaluated on CKKS ciphertext
+   * @return a shared pointer to the resulting ciphertext
+   */
+    LWECiphertext EvalFuncComp(ConstLWECiphertext ct, const std::vector<NativeInteger>& LUT, double deltain = 0,
+                               double deltaout = 0, NativeInteger qout = 0, double (*f)(double m) = nullptr,
+                               uint32_t f_property = 0, double shift = 0, uint32_t baseG_small = 1 << 27) const;
+
+    /**
+     * Evaluate an arbitrary function using FDFB-BFVMult
+     *
+    * @param ct1 ciphertext to be bootstrapped
+    * @param LUT the look-up table of the to-be-evaluated function
+    * @param deltain input scaling factor of CKKS ciphertext
+    * @param deltaout output scaling factor of CKKS ciphertext
+    * @param f real function to be evaluated on CKKS ciphertext
+    */
+    LWECiphertext EvalFuncBFV(ConstLWECiphertext ct, const std::vector<NativeInteger>& LUT, double deltain = 0,
+                              double deltaout = 0, NativeInteger qout = 0, double (*f)(double m) = nullptr) const;
+
+    /**
+     * Evaluate an arbitrary function using updated WoPPBS-1 (a padding bit)
+     *
+    * @param ct1 ciphertext to be bootstrapped
+    * @param LUT the look-up table of the to-be-evaluated function
+    * @param deltain input scaling factor of CKKS ciphertext
+    * @param deltaout output scaling factor of CKKS ciphertext
+    * @param f real function to be evaluated on CKKS ciphertext
+    */
+    LWECiphertext EvalFuncWoPPBS1(ConstLWECiphertext ct, const std::vector<NativeInteger>& LUT, double deltain = 0,
+                                  double deltaout = 0, NativeInteger qout = 0, double (*f)(double m) = nullptr) const;
+
+    /**
+     * Evaluate an arbitrary function using updated WoPPBS-2 (no padding bit)
+     *
+    * @param ct1 ciphertext to be bootstrapped
+    * @param LUT the look-up table of the to-be-evaluated function
+    * @param deltain input scaling factor of CKKS ciphertext
+    * @param deltaout output scaling factor of CKKS ciphertext
+    * @param f real function to be evaluated on CKKS ciphertext
+    */
+    LWECiphertext EvalFuncWoPPBS2(ConstLWECiphertext ct, const std::vector<NativeInteger>& LUT, double deltain = 0,
+                                  double deltaout = 0, NativeInteger qout = 0, double (*f)(double m) = nullptr) const;
+
+    /**
+     * Evaluate ReLU function
+     *
+     * @param ct input ciphertext
+     * @param ct_msd ciphertext storing most significant digit of ct
+     * @param beta error bound. beta = 0 means ct is in CKKS-style
+    */
+    LWECiphertext EvalReLU(ConstLWECiphertext ct, ConstLWECiphertext ct_msd, size_t baseG_sgn, size_t baseG_sel) const;
 
     /**
    * Generate the LUT for the to-be-evaluated function
@@ -358,13 +539,82 @@ public:
    */
     LWECiphertext EvalSign(ConstLWECiphertext& ct, bool schemeSwitch = false);
 
+    std::vector<LWECiphertext> EvalDecomp(ConstLWECiphertext ct, bool CKKS = false);
+
+    /**
+   * Evaluate a round down function
+   *
+   * @param ct1 ciphertext to be bootstrapped
+   * @param roundbits number of bits to be rounded
+   * @return a shared pointer to the resulting ciphertext
+   */
+    LWECiphertext EvalFloorAlt(ConstLWECiphertext ct, uint32_t roundbits = 0) const;
+
+    /**
+   * Evaluate a sign function over large precisions
+   *
+   * @param ct1 ciphertext to be bootstrapped
+   * @return a shared pointer to the resulting ciphertext
+   */
+    LWECiphertext EvalSignAlt(ConstLWECiphertext ct, bool fast, bool CKKS);
+
     /**
    * Evaluate ciphertext decomposition
    *
-   * @param ct ciphertext to be bootstrapped
+   * @param ct1 ciphertext to be bootstrapped
    * @return a vector of shared pointers to the resulting ciphertexts
    */
-    std::vector<LWECiphertext> EvalDecomp(ConstLWECiphertext& ct);
+    std::vector<LWECiphertext> EvalDecompAlt(ConstLWECiphertext ct, bool CKKS = false);
+
+    /**
+   * Evaluate a round down function
+   *
+   * @param ct1 ciphertext to be bootstrapped
+   * @param roundbits number of bits to be rounded
+   * @return a shared pointer to the resulting ciphertext
+   */
+    LWECiphertext EvalFloorNew(ConstLWECiphertext ct, uint32_t roundbits = 0) const;
+
+    /**
+   * Evaluate a sign function over large precisions
+   *
+   * @param ct1 ciphertext to be bootstrapped
+   * @return a shared pointer to the resulting ciphertext
+   */
+    LWECiphertext EvalSignNew(ConstLWECiphertext ct);
+
+    /**
+   * Evaluate ciphertext decomposition
+   *
+   * @param ct1 ciphertext to be bootstrapped
+   * @return a vector of shared pointers to the resulting ciphertexts
+   */
+    std::vector<LWECiphertext> EvalDecompNew(ConstLWECiphertext ct, bool CKKS = false);
+
+    /**
+   * Evaluate a round down function
+   *
+   * @param ct1 ciphertext to be bootstrapped
+   * @param roundbits number of bits to be rounded
+   * @return a shared pointer to the resulting ciphertext
+   */
+    LWECiphertext EvalFloorCompress(ConstLWECiphertext ct, uint32_t roundbits = 0) const;
+
+    /**
+   * Evaluate a sign function over large precisions
+   *
+   * @param ct1 ciphertext to be bootstrapped
+   * @return a shared pointer to the resulting ciphertext
+   */
+    LWECiphertext EvalSignCompress(ConstLWECiphertext ct);
+
+    /**
+   * Evaluate ciphertext decomposition
+   *
+   * @param ct1 ciphertext to be bootstrapped
+   * @return a vector of shared pointers to the resulting ciphertexts
+   */
+    std::vector<LWECiphertext> EvalDecompCompress(ConstLWECiphertext ct, bool CKKS = false);
 
     /**
    * Evaluates NOT gate
@@ -437,23 +687,24 @@ public:
         return m_params->GetLWEParams()->Getq() / (this->GetBeta() << 1);
     }
 
-    /**
-   * Getter for the beta security parameter
-   * @return
-   */
-    constexpr NativeInteger GetBeta() const {
-        return NativeInteger(128);
+    NativeInteger GetBeta() const {
+        return m_half_gap;
+    }
+
+    // precise beta (bootstrapping error is close to rescaling error)
+    NativeInteger GetBetaPrecise() const {
+        return m_beta_precise;
     }
 
 private:
     // Shared pointer to Ring GSW + LWE parameters
-    std::shared_ptr<BinFHECryptoParams> m_params=nullptr;
+    std::shared_ptr<BinFHECryptoParams> m_params = nullptr;
 
     // Shared pointer to the underlying additive LWE scheme
-    std::shared_ptr<LWEEncryptionScheme> m_LWEscheme=std::make_shared<LWEEncryptionScheme>();
+    std::shared_ptr<LWEEncryptionScheme> m_LWEscheme = std::make_shared<LWEEncryptionScheme>();
 
     // Shared pointer to the underlying RingGSW/RLWE scheme
-    std::shared_ptr<BinFHEScheme> m_binfhescheme=nullptr;
+    std::shared_ptr<BinFHEScheme> m_binfhescheme = nullptr;
 
     // Struct containing the bootstrapping keys
     RingGSWBTKey m_BTKey = {0};
@@ -461,9 +712,14 @@ private:
     std::map<uint32_t, RingGSWBTKey> m_BTKey_map;
 
     // Whether to optimize time for sign eval
-    bool m_timeOptimization=false;
-};
+    bool m_timeOptimization = false;
 
+    // precise beta
+    uint32_t m_beta_precise = 55;  // for standard params, beta_precise = 55
+    // half gap
+    uint32_t m_half_gap = 0;
+
+};
 }  // namespace lbcrypto
 
 #endif

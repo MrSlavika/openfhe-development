@@ -63,6 +63,13 @@ namespace lbcrypto {
  */
 template <typename VecType>
 class PolyImpl final : public PolyInterface<PolyImpl<VecType>, VecType, PolyImpl> {
+
+    // ref: https://stackoverflow.com/questions/44012938
+    template <class, template <class> class>
+    struct is_instance : public std::false_type {};
+
+    template <class T, template <class> class U>
+    struct is_instance<U<T>, U> : public std::true_type {};
 public:
     using Vector            = VecType;
     using Integer           = typename VecType::Integer;
@@ -323,6 +330,57 @@ public:
     double Norm() const override;
     std::vector<PolyImpl> BaseDecompose(usint baseBits, bool evalModeAnswer) const override;
     std::vector<PolyImpl> PowersOfBase(usint baseBits) const override;
+    /**
+   * @brief Shift entries in the vector left a specific number of entries.
+   *
+   * @param n the number of entries to shift left.
+   * @return is the resulting vector from shifting left.
+   */
+    PolyImpl ShiftLeft(unsigned int n) const;
+
+    /**
+   * @brief Shift entries in the vector right a specific number of entries.
+   *
+   * @param n the number of entries to shift right.
+   * @return is the resulting vector from shifting right.
+   */
+    PolyImpl ShiftRight(unsigned int n) const;
+
+    /**
+   * @brief Shift right by n negacyclicly (multiply by X^n)
+   *
+   * @param n the number of entries to shift right.
+   * @return is the resulting vector from shifting right.
+   */
+    // it seems we cannot move denifinition to poly.cpp...
+    template <typename dummy = void>
+    [[nodiscard]] PolyImpl ShiftRightNegacyclic(
+        unsigned int n, std::enable_if_t<is_instance<VecType, intnat::NativeVectorT>::value, dummy>* = 0) const {
+        if (m_format != Format::COEFFICIENT)
+            OPENFHE_THROW(openfhe_error, "negacyclic rotation is only supported in coefficient format");
+
+        PolyImpl<VecType> tmp = this->CloneParametersOnly();
+        tmp.SetValues(GetValues().ShiftRightNegacyclic(n), Format::COEFFICIENT);
+        return tmp;
+
+        // auto length = GetLength();
+        // n %= 2 * length;
+        // auto modulus = GetModulus();
+        // if (n >= length) {
+        //     n -= length;
+        //     for (usint i = 0; i < n; i++)
+        //         tmp[i] = at(length - n + i);
+        //     for (usint i = n; i < length; i++)
+        //         tmp[i] = (-at(i - n)).Mod(modulus);
+        // }
+        // else {
+        //     for (usint i = 0; i < n; i++)
+        //         tmp[i] = (-at(length - n + i)).Mod(modulus);
+        //     for (usint i = n; i < length; i++)
+        //         tmp[i] = at(i - n);
+        // }
+        // return tmp;
+    }
 
     template <class Archive>
     void save(Archive& ar, std::uint32_t const version) const {

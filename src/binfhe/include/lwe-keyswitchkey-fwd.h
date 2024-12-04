@@ -36,10 +36,14 @@
 namespace lbcrypto {
 
 class LWESwitchingKeyImpl;
-
+class LWESwitchingKeyMultImpl;
+class RLWESwitchingKeyImpl;
 using LWESwitchingKey      = std::shared_ptr<LWESwitchingKeyImpl>;
 using ConstLWESwitchingKey = const std::shared_ptr<const LWESwitchingKeyImpl>;
-
+using LWESwitchingKeyMult      = std::shared_ptr<LWESwitchingKeyMultImpl>;
+using ConstLWESwitchingKeyMult = const std::shared_ptr<const LWESwitchingKeyMultImpl>;
+using RLWESwitchingKey = std::shared_ptr<RLWESwitchingKeyImpl>;
+using ConstRLWESwitchingKey = const std::shared_ptr<const RLWESwitchingKeyImpl>;
 }  // namespace lbcrypto
 
 #endif  // __LWE_KEYSWITCHKEY_FWD_H__

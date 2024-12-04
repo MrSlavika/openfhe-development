@@ -226,6 +226,29 @@ public:
                             ConstLWECiphertext& ctQN) const;
 
     /**
+   * Generates a (mult-style) switching key to go from a secret key with (Q,N) to a secret
+   * key with (q,n)
+   *
+   * @param params a shared pointer to LWE scheme parameters
+   * @param sk new secret key
+   * @param skN old secret key
+   * @return a shared pointer to the switching key
+   */
+    LWESwitchingKeyMult KeySwitchGenMult(const std::shared_ptr<LWECryptoParams> params, ConstLWEPrivateKey sk,
+                                         ConstLWEPrivateKey skN) const;
+
+    /**
+   * Switches ciphertext from (Q,N) to (Q,n) using mult-stype switching key
+   *
+   * @param params a shared pointer to LWE scheme parameters
+   * @param K switching key
+   * @param ctQN input ciphertext
+   * @return a shared pointer to the resulting ciphertext
+   */
+    LWECiphertext KeySwitchMult(const std::shared_ptr<LWECryptoParams> params, ConstLWESwitchingKeyMult K,
+                                ConstLWECiphertext ctQN) const;
+
+    /**
    * Embeds a plaintext bit without noise or encryption
    *
    * @param params a shared pointer to LWE scheme parameters

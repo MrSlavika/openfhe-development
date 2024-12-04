@@ -58,8 +58,11 @@ namespace lbcrypto {
  */
 class RingGSWCryptoParams : public Serializable {
 public:
-    RingGSWCryptoParams() = default;
-
+    RingGSWCryptoParams()                      = default;
+    constexpr static uint32_t PKKEY_FULL       = 1 << 0;
+    constexpr static uint32_t PKKEY_HALF       = 1 << 1;
+    constexpr static uint32_t PKKEY_CONST      = 1 << 2;
+    constexpr static uint32_t PKKEY_HALF_TRANS = 1 << 3;
     /**
    * Main constructor for RingGSWCryptoParams
    *
@@ -75,18 +78,25 @@ public:
     * @param numAutoKeys number of automorphism keys in LMKCDEY bootstrapping
     * @param compositeNTT flag if composite NTT parameter set is used
    */
+
     explicit RingGSWCryptoParams(uint32_t N, NativeInteger Q, NativeInteger q, uint32_t baseG, uint32_t baseR,
-                                 BINFHE_METHOD method, double std, SecretKeyDist keyDist = UNIFORM_TERNARY,
-                                 bool signEval = false, uint32_t numAutoKeys = 10, int compositeNTT = 0)
-        : m_Q(Q),
+                                 BINFHE_METHOD method, double std, bool signEval = false, uint32_t basePK = 1 << 5,
+                                 const NativeInteger& qfrom = uint64_t(1) << 35, uint32_t baseG0 = 1 << 6,
+                                 uint32_t baseGMV = 1 << 6, const std::vector<uint32_t>& baseGs = {},
+                                 uint32_t pkkey_flags = 0, NativeInteger P = 0, uint32_t baseRL = 0,    uint32_t numAutoKeys = 10, int compositeNTT = 0)
+        : m_N(N),
+          m_Q(Q),
           m_q(q),
-          m_N(N),
           m_baseG(baseG),
           m_baseR(baseR),
-          m_polyParams{std::make_shared<ILNativeParams>(2 * N, Q)},
           m_method(method),
-          m_keyDist(keyDist),
-          m_numAutoKeys(numAutoKeys) {
+          m_basePK(basePK),
+          m_qfrom(qfrom),
+          m_baseG0(baseG0),
+          m_baseGMV(baseGMV),
+          m_pkkey_flags(pkkey_flags),
+          m_P(P),
+          m_baseRL(baseRL) {
         if (!IsPowerOfTwo(baseG))
             OPENFHE_THROW("Gadget base should be a power of two.");
         if ((method == LMKCDEY) && (numAutoKeys == 0))
@@ -114,6 +124,103 @@ public:
         }
 
         m_dgg.SetStd(std);
+        NativeInteger rootOfUnity = RootOfUnity<NativeInteger>(2 * N, Q);
+
+        // Precomputes the table with twiddle factors to support fast NTT
+        ChineseRemainderTransformFTT<NativeVector>().PreCompute(rootOfUnity, 2 * N, Q);
+
+        // Precomputes a polynomial for MSB extraction
+        m_polyParams = std::make_shared<ILNativeParams>(2 * N, Q, rootOfUnity);
+
+        if(m_P > 0){
+            NativeInteger rootOfUnity_P = RootOfUnity<NativeInteger>(2 * N, m_P);
+            ChineseRemainderTransformFTT<NativeVector>().PreCompute(rootOfUnity_P, 2 * N, m_P);
+            m_polyParams_bfv = std::make_shared<ILNativeParams>(2 * N, m_P, rootOfUnity_P);
+        }
+
+        m_digitsG    = (uint32_t)std::ceil(log(Q.ConvertToDouble()) / log(static_cast<double>(m_baseG)));
+        if (m_method == AP) {
+            uint32_t digitCountR =
+                (uint32_t)std::ceil(log(static_cast<double>(q.ConvertToInt())) / log(static_cast<double>(m_baseR)));
+            // Populate digits
+            NativeInteger value = 1;
+            for (size_t i = 0; i < digitCountR; ++i) {
+                m_digitsR.push_back(value);
+                value *= m_baseR;
+            }
+        }
+
+        // Computes baseG^i
+        if (signEval) {
+            uint32_t baseGlist[3] = {1 << 14, 1 << 18, 1 << 27};
+            for (size_t j = 0; j < 3; ++j) {
+                NativeInteger vTemp = NativeInteger(1);
+                auto tempdigits =
+                    (uint32_t)std::ceil(log(Q.ConvertToDouble()) / log(static_cast<double>(baseGlist[j])));
+                std::vector<NativeInteger> tempvec(tempdigits);
+                for (size_t i = 0; i < tempdigits; ++i) {
+                    tempvec[i] = vTemp;
+                    vTemp      = vTemp.ModMul(NativeInteger(baseGlist[j]), Q);
+                }
+                m_Gpower_map[baseGlist[j]] = tempvec;
+                if (m_baseG == baseGlist[j])
+                    m_Gpower = tempvec;
+            }
+        }
+        else {
+            NativeInteger vTemp = NativeInteger(1);
+            for (size_t i = 0; i < m_digitsG; ++i) {
+                m_Gpower.push_back(vTemp);
+                vTemp = vTemp.ModMul(NativeInteger(m_baseG), Q);
+            }
+        }
+
+        if (baseGs.size() > 0) {
+            for (size_t j = 0; j < baseGs.size(); ++j) {
+                NativeInteger vTemp = NativeInteger(1);
+                auto tempdigits = (uint32_t)std::ceil(log(Q.ConvertToDouble()) / log(static_cast<double>(baseGs[j])));
+                std::vector<NativeInteger> tempvec(tempdigits);
+                for (size_t i = 0; i < tempdigits; ++i) {
+                    tempvec[i] = vTemp;
+                    vTemp      = vTemp.ModMul(NativeInteger(baseGs[j]), Q);
+                }
+                m_Gpower_map[baseGs[j]] = tempvec;
+                if (m_baseG == baseGs[j])
+                    m_Gpower = tempvec;
+            }
+        }
+
+        // Sets the gate constants for supported binary operations
+        m_gateConst = {
+            NativeInteger(5) * (q >> 3),  // OR
+            NativeInteger(7) * (q >> 3),  // AND
+            NativeInteger(1) * (q >> 3),  // NOR
+            NativeInteger(3) * (q >> 3),  // NAND
+            NativeInteger(5) * (q >> 3),  // XOR_FAST
+            NativeInteger(1) * (q >> 3)   // XNOR_FAST
+        };
+
+        // Computes polynomials X^m - 1 that are needed in the accumulator for the
+        // CGGI bootstrapping
+        if (m_method == GINX) {
+            // loop for positive values of m
+            for (size_t i = 0; i < N; ++i) {
+                NativePoly aPoly = NativePoly(m_polyParams, Format::COEFFICIENT, true);
+                aPoly[i].ModAddEq(NativeInteger(1), Q);  // X^m
+                aPoly[0].ModSubEq(NativeInteger(1), Q);  // -1
+                aPoly.SetFormat(Format::EVALUATION);
+                m_monomials.push_back(aPoly);
+            }
+
+            // loop for negative values of m
+            for (size_t i = 0; i < N; ++i) {
+                NativePoly aPoly = NativePoly(m_polyParams, Format::COEFFICIENT, true);
+                aPoly[i].ModSubEq(NativeInteger(1), Q);  // -X^m
+                aPoly[0].ModSubEq(NativeInteger(1), Q);  // -1
+                aPoly.SetFormat(Format::EVALUATION);
+                m_monomials.push_back(aPoly);
+            }
+        }
         PreCompute(signEval);
     }
 
@@ -153,6 +260,29 @@ public:
     uint32_t GetBaseR() const {
         return m_baseR;
     }
+    uint32_t GetBasePK() const {
+        return m_basePK;
+    }
+
+    const NativeInteger& GetQfrom() const {
+        return m_qfrom;
+    }
+
+    uint32_t GetBaseG0() const {
+        return m_baseG0;
+    }
+
+    uint32_t GetBaseGMV() const {
+        return m_baseGMV;
+    }
+
+    uint32_t GetBaseRL() const {
+        return m_baseRL;
+    }
+
+    uint32_t GetPKKeyFlags() const {
+        return m_pkkey_flags;
+    }
 
     uint32_t GetNumAutoKeys() const {
         return m_numAutoKeys;
@@ -165,7 +295,9 @@ public:
     const std::shared_ptr<ILNativeParams> GetPolyParams() const {
         return m_polyParams;
     }
-
+    const std::shared_ptr<ILNativeParams> GetPolyParamsP() const {
+        return m_polyParams_bfv;
+    }
     const std::shared_ptr<ILNativeParams> GetCompositePolyParams() const {
         return m_compositePolyParams;
     }
@@ -207,7 +339,10 @@ public:
     }
 
     bool operator==(const RingGSWCryptoParams& other) const {
-        return m_N == other.m_N && m_Q == other.m_Q && m_baseR == other.m_baseR && m_baseG == other.m_baseG;
+        return m_N == other.m_N && m_Q == other.m_Q && m_baseR == other.m_baseR && m_baseG == other.m_baseG &&
+               m_basePK == other.m_basePK && m_qfrom == other.m_qfrom && m_baseG0 == other.m_baseG0 &&
+               m_baseGMV == other.m_baseGMV && m_pkkey_flags == other.m_pkkey_flags && m_P == other.m_P && m_baseRL == other.m_baseRL;
+
     }
 
     bool operator!=(const RingGSWCryptoParams& other) const {
@@ -226,6 +361,11 @@ public:
         ar(::cereal::make_nvp("bdigitsG", m_digitsG));
         ar(::cereal::make_nvp("bparams", m_polyParams));
         ar(::cereal::make_nvp("numAutoKeys", m_numAutoKeys));
+        ar(::cereal::make_nvp("bPK", m_basePK));
+        ar(::cereal::make_nvp("qfrom", m_qfrom));
+        ar(::cereal::make_nvp("bG0", m_baseG0));
+        ar(::cereal::make_nvp("bGMV", m_baseGMV));
+        ar(::cereal::make_nvp("bflag", m_pkkey_flags));
     }
 
     template <class Archive>
@@ -246,7 +386,11 @@ public:
         ar(::cereal::make_nvp("bdigitsG", m_digitsG));
         ar(::cereal::make_nvp("bparams", m_polyParams));
         ar(::cereal::make_nvp("numAutoKeys", m_numAutoKeys));
-
+        ar(::cereal::make_nvp("bPK", m_basePK));
+        ar(::cereal::make_nvp("qfrom", m_qfrom));
+        ar(::cereal::make_nvp("bG0", m_baseG0));
+        ar(::cereal::make_nvp("bGMV", m_baseGMV));
+        ar(::cereal::make_nvp("bflag", m_pkkey_flags));
         PreCompute();
     }
 
@@ -327,6 +471,27 @@ private:
     // Bootstrapping method (DM or CGGI or LMKCDEY)
     BINFHE_METHOD m_method{BINFHE_METHOD::INVALID_METHOD};
 
+    // Base used in LWE to RLWE packing
+    uint32_t m_basePK;
+
+    // input modulus for LWE to RLWE packing, output modulus is always Q
+    NativeInteger m_qfrom;
+
+    // Base used in polynomial x RLWE' multiplication in FDFB-PreSelect
+    uint32_t m_baseG0;
+
+    // Base used in low-noise multi-value bootstrap
+    uint32_t m_baseGMV;
+
+    // flags indicating which packing keys should be generated
+    uint32_t m_pkkey_flags;
+
+
+    // parameters for polymonials modulo P
+    std::shared_ptr<ILNativeParams> m_polyParams_bfv;
+
+    // base used in BFV relinearization
+    uint32_t m_baseRL;
     // Secret key distribution: GAUSSIAN, UNIFORM_TERNARY, etc.
     SecretKeyDist m_keyDist{SecretKeyDist::UNIFORM_TERNARY};
 

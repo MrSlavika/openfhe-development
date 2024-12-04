@@ -361,6 +361,24 @@ public:
     NativeVectorT& ModEq(const IntegerType& modulus);
 
     /**
+     * Reduce to inner modulus
+    */
+    const NativeVectorT& ModReduce();
+
+    /**
+     * Non-mod addition
+    */
+    const NativeVectorT& AddEq(const NativeVectorT& b);
+
+    const NativeVectorT& AddEq(const IntegerType& b);
+
+    /**
+     * Non-mod substraction
+    */
+    const NativeVectorT& SubEq(const NativeVectorT& b);
+
+
+    /**
    * Scalar modulus addition.
    *
    * After addition modulus operation is performed with the current vector
@@ -629,6 +647,7 @@ public:
    */
     NativeVectorT GetDigitAtIndexForBase(usint index, usint base) const;
 
+    [[nodiscard]] NativeVectorT ShiftRightNegacyclic(usint shift) const;
     // STRINGS & STREAMS
 
     /**

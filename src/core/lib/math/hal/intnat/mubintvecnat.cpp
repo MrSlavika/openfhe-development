@@ -193,6 +193,46 @@ NativeVectorT<IntegerType>& NativeVectorT<IntegerType>::ModEq(const IntegerType&
 }
 
 template <class IntegerType>
+const NativeVectorT<IntegerType>& NativeVectorT<IntegerType>::ModReduce() {
+    IntegerType modulus = this->m_modulus;
+    for(usint i = 0; i < this->m_data.size(); i++) {
+        this->m_data[i].ModEq(modulus);
+    }
+    return *this;
+}
+
+template <class IntegerType>
+const NativeVectorT<IntegerType>& NativeVectorT<IntegerType>::AddEq(const NativeVectorT& b) {
+    if ((this->m_data.size() != b.m_data.size()) || this->m_modulus != b.m_modulus) {
+        OPENFHE_THROW(lbcrypto::math_error, "ModAddEq called on NativeVectorT's with different parameters.");
+    }
+    for (usint i = 0; i < this->m_data.size(); i++) {
+        this->m_data[i].AddEq(b.m_data[i]);
+    }
+    return *this;
+}
+
+template <class IntegerType>
+const NativeVectorT<IntegerType>& NativeVectorT<IntegerType>::AddEq(const IntegerType& b) {
+    IntegerType bLocal  = b;
+    for (usint i = 0; i < this->m_data.size(); i++) {
+        this->m_data[i].AddEq(bLocal);
+    }
+    return *this;
+}
+
+template <class IntegerType>
+const NativeVectorT<IntegerType>& NativeVectorT<IntegerType>::SubEq(const NativeVectorT& b) {
+    if ((this->m_data.size() != b.m_data.size()) || this->m_modulus != b.m_modulus) {
+        OPENFHE_THROW(lbcrypto::math_error, "ModAddEq called on NativeVectorT's with different parameters.");
+    }
+    for (usint i = 0, len = this->m_data.size(); i < len; i++) {
+        this->m_data[i].SubEq(b.m_data[i]);
+    }
+    return *this;
+}
+
+template <class IntegerType>
 NativeVectorT<IntegerType> NativeVectorT<IntegerType>::ModAdd(const IntegerType& b) const {
     auto ans(*this);
     auto mv{m_modulus};
@@ -474,6 +514,27 @@ NativeVectorT<IntegerType> NativeVectorT<IntegerType>::GetDigitAtIndexForBase(us
     auto ans(*this);
     for (size_t i = 0; i < ans.m_data.size(); ++i)
         ans[i].m_value = static_cast<BasicInt>(ans[i].GetDigitAtIndexForBase(index, base));
+    return ans;
+}
+template <class IntegerType>
+[[nodiscard]] NativeVectorT<IntegerType> NativeVectorT<IntegerType>::ShiftRightNegacyclic(usint n) const {
+    auto length = m_data.size();
+    NativeVectorT ans(length, m_modulus);
+
+    n %= 2 * length;
+    if (n >= length) {
+        n -= length;
+        for (usint i = 0; i < n; i++)
+            ans.m_data[i] = m_data[length - n + i];
+        for (usint i = n; i < length; i++)
+            ans.m_data[i] = (m_modulus - m_data[i - n]).Mod(m_modulus);
+    }
+    else {
+        for (usint i = 0; i < n; i++)
+            ans.m_data[i] = (m_modulus - m_data[length - n + i]).Mod(m_modulus);
+        for (usint i = n; i < length; i++)
+            ans.m_data[i] = m_data[i - n];
+    }
     return ans;
 }
 

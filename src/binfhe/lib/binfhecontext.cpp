@@ -50,9 +50,26 @@ void BinFHEContext::GenerateBinFHEContext(uint32_t n, uint32_t N, const NativeIn
     m_params       = std::make_shared<BinFHECryptoParams>(lweparams, rgswparams);
     m_binfhescheme = std::make_shared<BinFHEScheme>(method);
 }
+/**
+ * baseR is used only for DM method, it does not matter what we set it to
+*/
+void BinFHEContext::GenerateBinFHEContext(uint32_t n, uint32_t N, const NativeInteger& q, const NativeInteger& Q,
+                                          const NativeInteger& qKS, double std, uint32_t baseKS, uint32_t baseG,
+                                          uint32_t baseR, uint32_t basePK, const NativeInteger& qfrom, uint32_t baseG0,
+                                          uint32_t baseGMV, uint32_t beta_precise, uint32_t p,
+                                          const std::vector<uint32_t>& baseGs, uint32_t pkkey_flags, bool multithread,
+                                          const NativeInteger& P, uint32_t baseRL, BINFHE_METHOD method) {
+    auto lweparams  = std::make_shared<LWECryptoParams>(n, N, q, Q, qKS, std, baseKS);
+    auto rgswparams = std::make_shared<RingGSWCryptoParams>(N, Q, q, baseG, baseR, method, std, false, basePK, qfrom,
+                                                            baseG0, baseGMV, baseGs, pkkey_flags, P, baseRL);
+    m_params        = std::make_shared<BinFHECryptoParams>(lweparams, rgswparams, multithread);
+    m_binfhescheme  = std::make_shared<BinFHEScheme>(method);
+    m_beta_precise  = beta_precise;  // FIXME: still kind of ugly... this property should belong to a single EK
+    m_half_gap      = p > 0 ? (q.ConvertToInt() + p) / (2 * p) : 64;
+}
 
-void BinFHEContext::GenerateBinFHEContext(BINFHE_PARAMSET set, bool arbFunc, uint32_t logQ, uint32_t N,
-                                          BINFHE_METHOD method, bool timeOptimization) {
+void BinFHEContext::GenerateBinFHEContext(BINFHE_PARAMSET set, bool arbFunc, uint32_t logQ, int64_t N,
+                                          BINFHE_METHOD method, bool timeOptimization, uint32_t B_g) {
     if (set != STD128 && set != STD128_Binary && set != TOY)
         OPENFHE_THROW("STD128 and TOY are the only supported sets");
     if (logQ > 29)
@@ -75,6 +92,8 @@ void BinFHEContext::GenerateBinFHEContext(BINFHE_PARAMSET set, bool arbFunc, uin
         baseG     = 1 << 5;
         logQprime = 27;
     }
+    if (B_g != 0)  // manual override
+        baseG = B_g;
 
     // choose minimum ringD satisfying sl and Q
     // if specified some larger N, security is also satisfied
@@ -164,11 +183,16 @@ void BinFHEContext::GenerateBinFHEContext(BINFHE_PARAMSET set, BINFHE_METHOD met
         OPENFHE_THROW("unknown parameter set");
     auto& params = search->second;
 
-    auto Q         = LastPrime<NativeInteger>(params.numberBits, params.cyclOrder);
-    auto ringDim   = params.cyclOrder >> 1;
-    auto lweparams = std::make_shared<LWECryptoParams>(params.latticeParam, ringDim, params.mod, Q,
-                                                       (params.modKS == PRIME ? Q : params.modKS), params.stdDev,
-                                                       params.baseKS, params.keyDist);
+    NativeInteger Q(
+        PreviousPrime<NativeInteger>(FirstPrime<NativeInteger>(params.numberBits, params.cyclOrder), params.cyclOrder));
+
+    usint ringDim   = params.cyclOrder / 2;
+    auto lweparams  = (PRIME == params.modKS) ?
+                         std::make_shared<LWECryptoParams>(params.latticeParam, ringDim, params.mod, Q, Q,
+                                                           params.stdDev, params.baseKS) :
+                         std::make_shared<LWECryptoParams>(params.latticeParam, ringDim, params.mod, Q, params.modKS,
+                                                           params.stdDev, params.baseKS);
+
     // 2: hybrid; 1: composite; 0: gadget decompose
     int compositeNTT = (set == T_1024_30 || set == T_1024_30_Binary)
                            ? 2
@@ -274,11 +298,22 @@ void BinFHEContext::BTKeyGen(ConstLWEPrivateKey& sk, KEYGEN_MODE keygenMode) {
     auto&& RGSWParams = m_params->GetRingGSWParams();
 
     auto temp = RGSWParams->GetBaseG();
+    auto skN = m_LWEscheme->KeyGen(RGSWParams->GetN(), RGSWParams->GetQ());
 
-    if (m_timeOptimization) {
-        for (auto&& [k, v] : RGSWParams->GetGPowerMap()) {
-            RGSWParams->Change_BaseG(k);
-            m_BTKey_map[k] = m_binfhescheme->KeyGen(m_params, sk, keygenMode);
+    if (RGSWParams->GetGPowerMap().size() > 0) {
+        auto gpowermap    = RGSWParams->GetGPowerMap();
+        bool init         = false;
+        uint32_t first_bg = 0;
+        for (std::map<uint32_t, std::vector<NativeInteger>>::iterator it = gpowermap.begin(); it != gpowermap.end();
+             ++it) {
+            RGSWParams->Change_BaseG(it->first);
+            if (!init) {  // reuse generated PK keys
+                m_BTKey_map[it->first] = m_binfhescheme->KeyGen(m_params, sk, skN, nullptr);
+                init                   = true;
+                first_bg               = it->first;
+            }
+            else
+                m_BTKey_map[it->first] = m_binfhescheme->KeyGen(m_params, sk, skN, &m_BTKey_map[first_bg]);
         }
         RGSWParams->Change_BaseG(temp);
     }
@@ -287,7 +322,7 @@ void BinFHEContext::BTKeyGen(ConstLWEPrivateKey& sk, KEYGEN_MODE keygenMode) {
         m_BTKey = m_BTKey_map[temp];
     }
     else {
-        m_BTKey           = m_binfhescheme->KeyGen(m_params, sk, keygenMode);
+        m_BTKey           = m_binfhescheme->KeyGen(m_params, sk, skN, nullptr);
         m_BTKey_map[temp] = m_BTKey;
     }
 }
@@ -314,7 +349,101 @@ LWECiphertext BinFHEContext::EvalConstant(bool value) const {
 
 LWECiphertext BinFHEContext::EvalFunc(ConstLWECiphertext& ct, const std::vector<NativeInteger>& LUT) const {
     return m_binfhescheme->EvalFunc(m_params, m_BTKey, ct, LUT, GetBeta());
+}LWECiphertext BinFHEContext::EvalFuncTest(ConstLWECiphertext ct, const std::vector<NativeInteger>& LUT, double deltain,
+                                          double deltaout, NativeInteger qout, double (*f)(double m)) const {
+    NativeInteger beta = GetBetaPrecise();
+    return m_binfhescheme->EvalFuncTest(m_params, m_BTKey, ct, LUT, beta, deltain, deltaout, qout, f);
 }
+
+LWECiphertext BinFHEContext::EvalFuncCompress(ConstLWECiphertext ct, const std::vector<NativeInteger>& LUT,
+                                              double deltain, double deltaout, NativeInteger qout,
+                                              double (*f)(double m)) const {
+    NativeInteger beta = GetBetaPrecise();
+    return m_binfhescheme->EvalFuncCompress(m_params, m_BTKey, ct, LUT, beta, deltain, deltaout, qout, f);
+}
+
+LWECiphertext BinFHEContext::EvalFuncCancelSign(ConstLWECiphertext ct, const std::vector<NativeInteger>& LUT,
+                                                double deltain, double deltaout, NativeInteger qout,
+                                                double (*f)(double m)) const {
+    NativeInteger beta = GetBetaPrecise();
+    return m_binfhescheme->EvalFuncCancelSign(m_params, m_BTKey, ct, LUT, beta, deltain, deltaout, qout, f);
+}
+
+LWECiphertext BinFHEContext::EvalFuncSelect(ConstLWECiphertext ct, const std::vector<NativeInteger>& LUT,
+                                            double deltain, double deltaout, NativeInteger qout, double (*f)(double m),
+                                            uint32_t baseG_small) const {
+    NativeInteger beta = GetBetaPrecise();
+    auto it_small      = m_BTKey_map.find(baseG_small);
+    if (it_small == m_BTKey_map.end())
+        OPENFHE_THROW(openfhe_error, "EK not found");
+    return m_binfhescheme->EvalFuncSelect(m_params, m_BTKey, ct, LUT, beta, deltain, deltaout, qout, f,
+                                          it_small->second, baseG_small);
+}
+
+LWECiphertext BinFHEContext::EvalFuncSelectAlt(ConstLWECiphertext ct, const std::vector<NativeInteger>& LUT,
+                                               double deltain, double deltaout, NativeInteger qout,
+                                               double (*f)(double m), uint32_t baseG_small) const {
+    NativeInteger beta = GetBetaPrecise();
+    auto it_small      = m_BTKey_map.find(baseG_small);
+    if (it_small == m_BTKey_map.end())
+        OPENFHE_THROW(openfhe_error, "EK not found");
+    return m_binfhescheme->EvalFuncSelectAlt(m_params, m_BTKey, ct, LUT, beta, deltain, deltaout, qout, f,
+                                             it_small->second, baseG_small);
+}
+
+LWECiphertext BinFHEContext::EvalFuncPreSelect(ConstLWECiphertext ct, const std::vector<NativeInteger>& LUT,
+                                               double deltain, double deltaout, NativeInteger qout,
+                                               double (*f)(double m), NativeInteger p_mid) const {
+    NativeInteger beta = GetBetaPrecise();
+    return m_binfhescheme->EvalFuncPreSelect(m_params, m_BTKey, ct, LUT, beta, deltain, deltaout, qout, f, p_mid);
+}
+
+LWECiphertext BinFHEContext::EvalFuncKS21(ConstLWECiphertext ct, const std::vector<NativeInteger>& LUT, double deltain,
+                                          double deltaout, NativeInteger qout, double (*f)(double m)) const {
+    NativeInteger beta = GetBetaPrecise();
+    return m_binfhescheme->EvalFuncKS21(m_params, m_BTKey, ct, LUT, beta, deltain, deltaout, qout, f);
+}
+
+LWECiphertext BinFHEContext::EvalFuncComp(ConstLWECiphertext ct, const std::vector<NativeInteger>& LUT, double deltain,
+                                          double deltaout, NativeInteger qout, double (*f)(double m),
+                                          uint32_t f_property, double shift, uint32_t baseG_small) const {
+    NativeInteger beta = GetBetaPrecise();
+    auto it_small      = m_BTKey_map.find(baseG_small);
+    if (it_small == m_BTKey_map.end())
+        OPENFHE_THROW(openfhe_error, "EK not found");
+    return m_binfhescheme->EvalFuncComp(m_params, m_BTKey, ct, LUT, beta, deltain, deltaout, qout, f, f_property, shift,
+                                        it_small->second, baseG_small);
+}
+
+LWECiphertext BinFHEContext::EvalFuncBFV(ConstLWECiphertext ct, const std::vector<NativeInteger>& LUT, double deltain,
+                                         double deltaout, NativeInteger qout, double (*f)(double m)) const {
+    NativeInteger beta = GetBetaPrecise();
+    return m_binfhescheme->EvalFuncBFV(m_params, m_BTKey, ct, LUT, beta, deltain, deltaout, qout, f);
+}
+
+LWECiphertext BinFHEContext::EvalFuncWoPPBS1(ConstLWECiphertext ct, const std::vector<NativeInteger>& LUT,
+                                             double deltain, double deltaout, NativeInteger qout,
+                                             double (*f)(double m)) const {
+    NativeInteger beta = GetBetaPrecise();
+    return m_binfhescheme->EvalFuncWoPPBS1(m_params, m_BTKey, ct, LUT, beta, deltain, deltaout, qout, f);
+}
+
+LWECiphertext BinFHEContext::EvalFuncWoPPBS2(ConstLWECiphertext ct, const std::vector<NativeInteger>& LUT,
+                                             double deltain, double deltaout, NativeInteger qout,
+                                             double (*f)(double m)) const {
+    NativeInteger beta = GetBetaPrecise();
+    return m_binfhescheme->EvalFuncWoPPBS2(m_params, m_BTKey, ct, LUT, beta, deltain, deltaout, qout, f);
+}
+
+LWECiphertext BinFHEContext::EvalReLU(ConstLWECiphertext ct, ConstLWECiphertext ct_msd, size_t baseG_sgn,
+                                      size_t baseG_sel) const {
+    auto it_sgn = m_BTKey_map.find(baseG_sgn), it_sel = m_BTKey_map.find(baseG_sel);
+    if (it_sgn == m_BTKey_map.end() || it_sel == m_BTKey_map.end())
+        OPENFHE_THROW(openfhe_error, "EK not found");
+    auto beta = GetBeta().ConvertToInt();
+    return m_binfhescheme->EvalReLU(m_params, it_sgn->second, baseG_sgn, it_sel->second, baseG_sel, ct, ct_msd, beta);
+}
+
 
 LWECiphertext BinFHEContext::EvalFloor(ConstLWECiphertext& ct, uint32_t roundbits) const {
     //    auto q = m_params->GetLWEParams()->Getq().ConvertToInt();
@@ -331,11 +460,66 @@ LWECiphertext BinFHEContext::EvalSign(ConstLWECiphertext& ct, bool schemeSwitch)
     return m_binfhescheme->EvalSign(std::make_shared<BinFHECryptoParams>(*m_params), m_BTKey_map, ct, GetBeta(),
                                     schemeSwitch);
 }
-
-std::vector<LWECiphertext> BinFHEContext::EvalDecomp(ConstLWECiphertext& ct) {
-    return m_binfhescheme->EvalDecomp(m_params, m_BTKey_map, ct, GetBeta());
+std::vector<LWECiphertext> BinFHEContext::EvalDecomp(ConstLWECiphertext ct, bool CKKS) {
+    NativeInteger beta = GetBeta();
+    return m_binfhescheme->EvalDecomp(m_params, m_BTKey_map, ct, beta, CKKS);
 }
 
+LWECiphertext BinFHEContext::EvalFloorAlt(ConstLWECiphertext ct, uint32_t roundbits) const {
+    //    auto q = m_params->GetLWEParams()->Getq().ConvertToInt();
+    //    if (roundbits != 0) {
+    //        NativeInteger newp = this->GetMaxPlaintextSpace();
+    //        SetQ(q / newp * (1 << roundbits));
+    //    }
+    //    SetQ(q);
+    //    return res;
+    return m_binfhescheme->EvalFloorAlt(m_params, m_BTKey, ct, GetBeta(), roundbits);
+}
+
+LWECiphertext BinFHEContext::EvalSignAlt(ConstLWECiphertext ct, bool fast, bool CKKS) {
+    auto params        = std::make_shared<BinFHECryptoParams>(*m_params);
+    NativeInteger beta = GetBeta();
+    return m_binfhescheme->EvalSignAlt(params, m_BTKey_map, ct, beta, fast, CKKS);
+}
+
+std::vector<LWECiphertext> BinFHEContext::EvalDecompAlt(ConstLWECiphertext ct, bool CKKS) {
+    NativeInteger beta = GetBeta();
+    return m_binfhescheme->EvalDecompAlt(m_params, m_BTKey_map, ct, beta, CKKS);
+}
+
+LWECiphertext BinFHEContext::EvalFloorNew(ConstLWECiphertext ct, uint32_t roundbits) const {
+    //    auto q = m_params->GetLWEParams()->Getq().ConvertToInt();
+    //    if (roundbits != 0) {
+    //        NativeInteger newp = this->GetMaxPlaintextSpace();
+    //        SetQ(q / newp * (1 << roundbits));
+    //    }
+    //    SetQ(q);
+    //    return res;
+    return m_binfhescheme->EvalFloorNew(m_params, m_BTKey, ct, GetBeta(), roundbits);
+}
+
+LWECiphertext BinFHEContext::EvalSignNew(ConstLWECiphertext ct) {
+    auto params        = std::make_shared<BinFHECryptoParams>(*m_params);
+    NativeInteger beta = GetBeta();
+    return m_binfhescheme->EvalSignNew(params, m_BTKey_map, ct, beta);
+}
+
+std::vector<LWECiphertext> BinFHEContext::EvalDecompNew(ConstLWECiphertext ct, bool CKKS) {
+    NativeInteger beta = GetBeta();
+    return m_binfhescheme->EvalDecompNew(m_params, m_BTKey_map, ct, beta, CKKS);
+}
+
+LWECiphertext BinFHEContext::EvalFloorCompress(ConstLWECiphertext ct, uint32_t roundbits) const {
+    return m_binfhescheme->EvalFloorCompress(m_params, m_BTKey, ct, GetBeta(), roundbits);
+}
+
+LWECiphertext BinFHEContext::EvalSignCompress(ConstLWECiphertext ct) {
+    return m_binfhescheme->EvalSignCompress(m_params, m_BTKey_map, ct, GetBeta(), GetBetaPrecise());
+}
+
+std::vector<LWECiphertext> BinFHEContext::EvalDecompCompress(ConstLWECiphertext ct, bool CKKS) {
+    return m_binfhescheme->EvalDecompCompress(m_params, m_BTKey_map, ct, GetBeta(), GetBetaPrecise(), CKKS);
+}
 std::vector<NativeInteger> BinFHEContext::GenerateLUTviaFunction(NativeInteger (*f)(NativeInteger m, NativeInteger p),
                                                                  NativeInteger p) {
     if (!IsPowerOfTwo(p.ConvertToInt<BasicInteger>()))

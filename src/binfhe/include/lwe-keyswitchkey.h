@@ -123,7 +123,177 @@ private:
     std::vector<std::vector<std::vector<NativeVector>>> m_keyA;
     std::vector<std::vector<std::vector<NativeInteger>>> m_keyB;
 };
+/**
+ * @brief Class that stores the LWE scheme switching key (mult-style)
+ */
+class LWESwitchingKeyMultImpl : public Serializable {
+public:
+    LWESwitchingKeyMultImpl() = default;
 
+    explicit LWESwitchingKeyMultImpl(const std::vector<std::vector<NativeVector>>& keyA,
+                                     const std::vector<std::vector<NativeInteger>>& keyB)
+        : m_keyA(keyA), m_keyB(keyB) {}
+
+    explicit LWESwitchingKeyMultImpl(const LWESwitchingKeyMultImpl& rhs) {
+        m_keyA = rhs.m_keyA;
+        m_keyB = rhs.m_keyB;
+    }
+
+    explicit LWESwitchingKeyMultImpl(const LWESwitchingKeyMultImpl&& rhs) {
+        m_keyA = std::move(rhs.m_keyA);
+        m_keyB = std::move(rhs.m_keyB);
+    }
+
+    const LWESwitchingKeyMultImpl& operator=(const LWESwitchingKeyMultImpl& rhs) {
+        m_keyA = rhs.m_keyA;
+        m_keyB = rhs.m_keyB;
+        return *this;
+    }
+
+    const LWESwitchingKeyMultImpl& operator=(const LWESwitchingKeyMultImpl&& rhs) {
+        m_keyA = std::move(rhs.m_keyA);
+        m_keyB = std::move(rhs.m_keyB);
+        return *this;
+    }
+
+    const std::vector<std::vector<NativeVector>>& GetElementsA() const {
+        return m_keyA;
+    }
+
+    const std::vector<std::vector<NativeInteger>>& GetElementsB() const {
+        return m_keyB;
+    }
+
+    void SetElementsA(const std::vector<std::vector<NativeVector>>& keyA) {
+        m_keyA = keyA;
+    }
+
+    void SetElementsB(const std::vector<std::vector<NativeInteger>>& keyB) {
+        m_keyB = keyB;
+    }
+
+    bool operator==(const LWESwitchingKeyMultImpl& other) const {
+        return (m_keyA == other.m_keyA && m_keyB == other.m_keyB);
+    }
+
+    bool operator!=(const LWESwitchingKeyMultImpl& other) const {
+        return !(*this == other);
+    }
+
+    template <class Archive>
+    void save(Archive& ar, std::uint32_t const version) const {
+        ar(::cereal::make_nvp("a", m_keyA));
+        ar(::cereal::make_nvp("b", m_keyB));
+    }
+
+    template <class Archive>
+    void load(Archive& ar, std::uint32_t const version) {
+        if (version > SerializedVersion()) {
+            OPENFHE_THROW(deserialize_error, "serialized object version " + std::to_string(version) +
+                                                 " is from a later version of the library");
+        }
+
+        ar(::cereal::make_nvp("a", m_keyA));
+        ar(::cereal::make_nvp("b", m_keyB));
+    }
+
+    std::string SerializedObjectName() const {
+        return "LWEPrivateKeyMult";
+    }
+    static uint32_t SerializedVersion() {
+        return 1;
+    }
+
+private:
+    std::vector<std::vector<NativeVector>> m_keyA;
+    std::vector<std::vector<NativeInteger>> m_keyB;
+};
+
+/**
+ * @brief Class that stores the RLWE scheme switching key
+ */
+class RLWESwitchingKeyImpl : public Serializable {
+public:
+    RLWESwitchingKeyImpl() = default;
+
+    explicit RLWESwitchingKeyImpl(const std::vector<std::vector<std::vector<NativeVector>>>& keyA,
+                                  const std::vector<std::vector<std::vector<NativeVector>>>& keyB)
+        : m_keyA(keyA), m_keyB(keyB) {}
+
+    explicit RLWESwitchingKeyImpl(const RLWESwitchingKeyImpl& rhs) {
+        m_keyA = rhs.m_keyA;
+        m_keyB = rhs.m_keyB;
+    }
+
+    explicit RLWESwitchingKeyImpl(const RLWESwitchingKeyImpl&& rhs) {
+        m_keyA = std::move(rhs.m_keyA);
+        m_keyB = std::move(rhs.m_keyB);
+    }
+
+    const RLWESwitchingKeyImpl& operator=(const RLWESwitchingKeyImpl& rhs) {
+        m_keyA = rhs.m_keyA;
+        m_keyB = rhs.m_keyB;
+        return *this;
+    }
+
+    const RLWESwitchingKeyImpl& operator=(const RLWESwitchingKeyImpl&& rhs) {
+        m_keyA = std::move(rhs.m_keyA);
+        m_keyB = std::move(rhs.m_keyB);
+        return *this;
+    }
+
+    const std::vector<std::vector<std::vector<NativeVector>>>& GetElementsA() const {
+        return m_keyA;
+    }
+
+    const std::vector<std::vector<std::vector<NativeVector>>>& GetElementsB() const {
+        return m_keyB;
+    }
+
+    void SetElementsA(const std::vector<std::vector<std::vector<NativeVector>>>& keyA) {
+        m_keyA = keyA;
+    }
+
+    void SetElementsB(const std::vector<std::vector<std::vector<NativeVector>>>& keyB) {
+        m_keyB = keyB;
+    }
+
+    bool operator==(const RLWESwitchingKeyImpl& other) const {
+        return (m_keyA == other.m_keyA && m_keyB == other.m_keyB);
+    }
+
+    bool operator!=(const RLWESwitchingKeyImpl& other) const {
+        return !(*this == other);
+    }
+
+    template <class Archive>
+    void save(Archive& ar, std::uint32_t const version) const {
+        ar(::cereal::make_nvp("a", m_keyA));
+        ar(::cereal::make_nvp("b", m_keyB));
+    }
+
+    template <class Archive>
+    void load(Archive& ar, std::uint32_t const version) {
+        if (version > SerializedVersion()) {
+            OPENFHE_THROW(deserialize_error, "serialized object version " + std::to_string(version) +
+                                                 " is from a later version of the library");
+        }
+
+        ar(::cereal::make_nvp("a", m_keyA));
+        ar(::cereal::make_nvp("b", m_keyB));
+    }
+
+    std::string SerializedObjectName() const {
+        return "RLWESwitchingKey";
+    }
+    static uint32_t SerializedVersion() {
+        return 1;
+    }
+
+private:
+    std::vector<std::vector<std::vector<NativeVector>>> m_keyA;
+    std::vector<std::vector<std::vector<NativeVector>>> m_keyB;
+};
 }  // namespace lbcrypto
 
 #endif

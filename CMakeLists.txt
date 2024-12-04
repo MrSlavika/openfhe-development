@@ -160,8 +160,8 @@ else()
     set (NATIVE_OPT "")
 endif()
 
-set(C_COMPILE_FLAGS "-Wall -Werror -O3 ${NATIVE_OPT} -DOPENFHE_VERSION=${OPENFHE_VERSION}")
-set(CXX_COMPILE_FLAGS "-Wall -Werror -O3 ${NATIVE_OPT} -DOPENFHE_VERSION=${OPENFHE_VERSION} ${IGNORE_WARNINGS}")
+set(C_COMPILE_FLAGS "-Wall -O3 ${NATIVE_OPT} -DOPENFHE_VERSION=${OPENFHE_VERSION}")
+set(CXX_COMPILE_FLAGS "-Wall -O3 ${NATIVE_OPT} -DOPENFHE_VERSION=${OPENFHE_VERSION} ${IGNORE_WARNINGS}")
 
 if ( EMSCRIPTEN )
     set(EMSCRIPTEN_IGNORE_WARNINGS "-Wno-unused-but-set-variable -Wno-unknown-warning-option")
@@ -661,6 +661,7 @@ endif()
 add_subdirectory(src/core)
 add_subdirectory(src/pke)
 add_subdirectory(src/binfhe)
+
 
 ### build the google test handlers
 ###if( BUILD_UNITTESTS )

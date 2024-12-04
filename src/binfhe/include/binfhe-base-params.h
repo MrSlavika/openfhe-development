@@ -65,11 +65,15 @@ public:
    * Main constructor for BinFHECryptoParams
    *
    * @param lweparams a shared poiter to an instance of LWECryptoParams
-   * @param rgswparams a shared poiter to an instance of RingGSWCryptoParams
+   * @param baseG the gadget base used in the bootstrapping
+   * @param baseR the base for the refreshing key
+   * @param method bootstrapping method (DM or CGGI)
    */
-    BinFHECryptoParams(const std::shared_ptr<LWECryptoParams>& lweparams,
-                       const std::shared_ptr<RingGSWCryptoParams>& rgswparams)
-        : m_LWEParams(lweparams), m_RGSWParams(rgswparams) {}
+    BinFHECryptoParams(const std::shared_ptr<LWECryptoParams> lweparams,
+                       const std::shared_ptr<RingGSWCryptoParams> rgswparams,
+                       bool multithread=false)
+        : m_LWEParams(lweparams), m_RGSWParams(rgswparams), m_multithread(multithread) {}
+
 
     /**
    * Getter for LWE params
@@ -85,6 +89,9 @@ public:
    */
     const std::shared_ptr<RingGSWCryptoParams>& GetRingGSWParams() const {
         return m_RGSWParams;
+    }
+    bool GetMultithread() const {
+        return m_multithread;
     }
 
     /**
@@ -129,6 +136,7 @@ private:
 
     // shared pointer to an instance of RGSWCryptoParams
     std::shared_ptr<RingGSWCryptoParams> m_RGSWParams{nullptr};
+    bool m_multithread;
 };
 
 }  // namespace lbcrypto
