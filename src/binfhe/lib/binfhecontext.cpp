@@ -116,6 +116,7 @@ void BinFHEContext::GenerateBinFHEContext(BINFHE_PARAMSET set, bool arbFunc, uin
     m_params           = std::make_shared<BinFHECryptoParams>(lweparams, rgswparams);
     m_binfhescheme     = std::make_shared<BinFHEScheme>(method);
     m_timeOptimization = timeOptimization;
+
 }
 
 void BinFHEContext::GenerateBinFHEContext(BINFHE_PARAMSET set, BINFHE_METHOD method) {

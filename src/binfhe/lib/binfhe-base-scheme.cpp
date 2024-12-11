@@ -437,7 +437,7 @@ LWECiphertext BinFHEScheme::EvalFuncCompress(const std::shared_ptr<BinFHECryptoP
     auto ct1 = std::make_shared<LWECiphertextImpl>(*ct);
 
     NativeInteger q = ct->GetModulus();
-    if (f != nullptr) {
+    if (f != nullptr)   {
         NativeInteger Q = params->GetLWEParams()->GetQ();
         if (qout == 0)
             qout = q;  // when output modulus is not given, use the same as input modulus
