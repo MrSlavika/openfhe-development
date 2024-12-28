@@ -316,7 +316,7 @@ LWESwitchingKey LWEEncryptionScheme::KeySwitchGen(const std::shared_ptr<LWECrypt
         std::vector<std::vector<NativeVector>> vector1A(baseKS);
 
         std::vector<std::vector<NativeInteger>> vector1B(baseKS);
-        for (size_t j = 1; j < baseKS; ++j) {
+        for (size_t j = 0; j < baseKS; ++j) {
             // NOTE: skip j = 0 case
             std::vector<NativeVector> vector2A(digitCount);
             std::vector<NativeInteger> vector2B(digitCount);
