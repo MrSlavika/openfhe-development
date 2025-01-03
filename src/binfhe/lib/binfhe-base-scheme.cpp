@@ -3075,7 +3075,7 @@ LWECiphertext BinFHEScheme::BootstrapFunc(const std::shared_ptr<BinFHECryptoPara
 
     std::vector<NativePoly>& accVec = acc->GetElements();
     for(int i=0;i<10;i++){
-        printf("raw A %d , %lld\n", i,accVec[0].GetValues().at(i).ConvertToInt());
+       // printf("raw A %d , %lld\n", i,accVec[0].GetValues().at(i).ConvertToInt());
     }
     // the accumulator result is encrypted w.r.t. the transposed secret key
     // we can transpose "a" to get an encryption under the original secret key
@@ -3085,9 +3085,9 @@ LWECiphertext BinFHEScheme::BootstrapFunc(const std::shared_ptr<BinFHECryptoPara
 
     auto ctExt = std::make_shared<LWECiphertextImpl>(std::move(accVec[0].GetValues()), std::move(accVec[1][0]));
     for(int i=0;i<10;i++){
-        printf("raw A %d , %lld\n", i,accVec[0].GetValues().at(i).ConvertToInt());
+        //printf("raw A %d , %lld\n", i,accVec[0].GetValues().at(i).ConvertToInt());
     }
-    printf("raw B %lld\n",ctExt->GetB().ConvertToInt());
+   // printf("raw B %lld\n",ctExt->GetB().ConvertToInt());
     if (raw)
         return ctExt;
 
