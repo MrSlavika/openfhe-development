@@ -677,7 +677,9 @@ public:
     static uint32_t SerializedVersion() {
         return 1;
     }
-
+    RingGSWBTKey GetBTKey() const{
+        return m_BTKey;
+    }
     /**
    * Getter for maximum plaintext modulus
    * @return
@@ -695,6 +697,8 @@ public:
     NativeInteger GetBetaPrecise() const {
         return m_beta_precise;
     }
+
+
 
 private:
     // Shared pointer to Ring GSW + LWE parameters

@@ -558,6 +558,36 @@ public:
                                                   bool CKKS) const;
 
 
+/**
+* Switches ciphertext from LWE(q,N) to RLWE(Q,N), at the same time evaluating linear map
+* {[m_i], pos_i} |-> sum(m_i*(1+X+...+X^(nOnes-1))*X^pos_i). pos_i is the param of RLWESwitchingKey
+* i.e. produce a test vector (in ciphertext)
+*
+* @param params parameter for BinFHEScheme
+* @param K switching key
+* @param nOnes number of ones in linear map basis, i.e. 1+X+...+X^(nOnes-1)
+* @param messages vector of {LWE ciphertext, right shift pos} pairs
+* @return a shared pointer to the resulting ciphertext
+*/
+RLWECiphertext FunctionalKeySwitch(const std::shared_ptr<BinFHECryptoParams> params, ConstRLWESwitchingKey K,
+                                   usint nOnes,
+                                   const std::vector<std::pair<ConstLWECiphertext, size_t>>& messages) const;
+
+/**
+* Bootstrap an RLWE ciphertext
+*
+* @param params a shared pointer to RingGSW scheme parameters
+* @param EK a shared pointer to the bootstrapping keys
+* @param ct LWE ciphertext encrypting the index
+* @param tv RLWE ciphertext, the test vector
+* @param fmod output modulus
+* @param raw if set to true, the acc after blind rotation will be directly returned without MS or KS
+* @return the output RingLWE accumulator
+*/
+LWECiphertext BootstrapCtxt(const std::shared_ptr<BinFHECryptoParams> params, const RingGSWBTKey& EK,
+                            ConstLWECiphertext ct, ConstRLWECiphertext tv, const NativeInteger fmod,
+                            bool raw = false, bool ms = true) const;
+
 private:
     /**
    * Core bootstrapping operation
@@ -619,21 +649,6 @@ private:
                                      ConstLWECiphertext ct, ConstRLWECiphertext tv) const;
 
     /**
-   * Bootstrap an RLWE ciphertext
-   *
-   * @param params a shared pointer to RingGSW scheme parameters
-   * @param EK a shared pointer to the bootstrapping keys
-   * @param ct LWE ciphertext encrypting the index
-   * @param tv RLWE ciphertext, the test vector
-   * @param fmod output modulus
-   * @param raw if set to true, the acc after blind rotation will be directly returned without MS or KS
-   * @return the output RingLWE accumulator
-   */
-    LWECiphertext BootstrapCtxt(const std::shared_ptr<BinFHECryptoParams> params, const RingGSWBTKey& EK,
-                                ConstLWECiphertext ct, ConstRLWECiphertext tv, const NativeInteger fmod,
-                                bool raw = false, bool ms = true) const;
-
-    /**
    * Changes a polynomial in R_Q to a scaled one in R_q
    *
    * @param q modulus to switch to
@@ -669,21 +684,6 @@ private:
    */
     RLWESwitchingKey FunctionalKeySwitchGen(const std::shared_ptr<BinFHECryptoParams> params, ConstLWEPrivateKey sk,
                                             const NativePoly& skNTT, usint nOnes) const;
-
-    /**
-   * Switches ciphertext from LWE(q,N) to RLWE(Q,N), at the same time evaluating linear map
-   * {[m_i], pos_i} |-> sum(m_i*(1+X+...+X^(nOnes-1))*X^pos_i). pos_i is the param of RLWESwitchingKey
-   * i.e. produce a test vector (in ciphertext)
-   *
-   * @param params parameter for BinFHEScheme
-   * @param K switching key
-   * @param nOnes number of ones in linear map basis, i.e. 1+X+...+X^(nOnes-1)
-   * @param messages vector of {LWE ciphertext, right shift pos} pairs
-   * @return a shared pointer to the resulting ciphertext
-   */
-    RLWECiphertext FunctionalKeySwitch(const std::shared_ptr<BinFHECryptoParams> params, ConstRLWESwitchingKey K,
-                                       usint nOnes,
-                                       const std::vector<std::pair<ConstLWECiphertext, size_t>>& messages) const;
 
     //XXX: debug
     RLWECiphertext FunctionalKeySwitchSimple(const std::shared_ptr<BinFHECryptoParams> params, ConstRLWESwitchingKey K,
@@ -831,6 +831,7 @@ protected:
         }
         return 2;
     }
+
 };
 
 }  // namespace lbcrypto

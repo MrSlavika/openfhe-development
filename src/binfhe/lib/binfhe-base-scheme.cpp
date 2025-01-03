@@ -810,8 +810,9 @@ LWECiphertext BinFHEScheme::EvalFuncSelect(const std::shared_ptr<BinFHECryptoPar
     };
 
     LWECiphertext ct_pos, ct_neg, ct_sgn;
-
-    if (use_multi_value_bts) {
+    use_multi_value_bts= false;
+    /**
+    if (false) {
         auto rlwe_prime = PrepareRLWEPrime(params, EK, ct1, beta, p, false);  // NOTE: beta here
 
         NativeVector tv1_pos(N, p);
@@ -850,7 +851,7 @@ LWECiphertext BinFHEScheme::EvalFuncSelect(const std::shared_ptr<BinFHECryptoPar
     }
     else {
         if (multithread) {
-#pragma omp parallel for num_threads(3)
+//#pragma omp parallel for num_threads(3)
             for (size_t i = 0; i < 3; i++) {
                 if (i == 0)
                     ct_pos = BootstrapFunc(params, EK, ct1, fLUTpos, p, true);
@@ -865,10 +866,21 @@ LWECiphertext BinFHEScheme::EvalFuncSelect(const std::shared_ptr<BinFHECryptoPar
             ct_neg = BootstrapFunc(params, EK, ct1, fLUTneg, p, true);
             ct_sgn = BootstrapFunc(params, EK, ct1, fLUTsgn, p, true);
         }
-        ct_sgn = LWEscheme->ModSwitch(qKS, ct_sgn);
-        ct_sgn = LWEscheme->KeySwitch(LWEParams, EK.KSkey, ct_sgn);
-        ct_sgn = LWEscheme->ModSwitch(q, ct_sgn);  // ct_sgn is in (-3q/4, 0) when msb = 1, and in (0, 4/q) when msb = 0
+
+
+
+        //ct_sgn = LWEscheme->ModSwitch(qKS, ct_sgn);
+       // ct_sgn = LWEscheme->KeySwitch(LWEParams, EK.KSkey, ct_sgn);
+        //ct_sgn = LWEscheme->ModSwitch(q, ct_sgn);  // ct_sgn is in (-3q/4, 0) when msb = 1, and in (0, 4/q) when msb = 0
     }
+*/
+    ct_pos = BootstrapFunc(params, EK, ct1, fLUTpos, p, true);
+    ct_neg = BootstrapFunc(params, EK, ct1, fLUTneg, p, true);
+    ct_sgn = BootstrapFunc(params, EK, ct1, fLUTsgn, p, true);
+
+    ct_sgn = LWEscheme->ModSwitch(qKS, ct_sgn);
+    ct_sgn = LWEscheme->KeySwitch(LWEParams, EK.KSkey, ct_sgn);
+    ct_sgn = LWEscheme->ModSwitch(q, ct_sgn);  // ct_sgn is in (-3q/4, 0) when msb = 1, and in (0, 4/q) when msb = 0
     // functional KS
     auto packed_tv =
         FunctionalKeySwitch(params, EK.PKkey_half, N / 2,
@@ -3049,6 +3061,8 @@ RLWECiphertext BinFHEScheme::BootstrapFuncCore(const std::shared_ptr<BinFHECrypt
     // the following loop is the bottleneck of bootstrapping/binary gate
     // evaluation
     auto acc = std::make_shared<RLWECiphertextImpl>(std::move(res));
+
+
     ACCscheme->EvalAcc(RGSWParams, ek, acc, ct->GetA());
     return acc;
 }
@@ -3060,6 +3074,9 @@ LWECiphertext BinFHEScheme::BootstrapFunc(const std::shared_ptr<BinFHECryptoPara
     auto acc = BootstrapFuncCore(params, EK.BSkey, ct, f, fmod);
 
     std::vector<NativePoly>& accVec = acc->GetElements();
+    for(int i=0;i<10;i++){
+        printf("raw A %d , %lld\n", i,accVec[0].GetValues().at(i).ConvertToInt());
+    }
     // the accumulator result is encrypted w.r.t. the transposed secret key
     // we can transpose "a" to get an encryption under the original secret key
     accVec[0] = accVec[0].Transpose();
@@ -3067,6 +3084,10 @@ LWECiphertext BinFHEScheme::BootstrapFunc(const std::shared_ptr<BinFHECryptoPara
     accVec[1].SetFormat(Format::COEFFICIENT);
 
     auto ctExt = std::make_shared<LWECiphertextImpl>(std::move(accVec[0].GetValues()), std::move(accVec[1][0]));
+    for(int i=0;i<10;i++){
+        printf("raw A %d , %lld\n", i,accVec[0].GetValues().at(i).ConvertToInt());
+    }
+    printf("raw B %lld\n",ctExt->GetB().ConvertToInt());
     if (raw)
         return ctExt;
 
