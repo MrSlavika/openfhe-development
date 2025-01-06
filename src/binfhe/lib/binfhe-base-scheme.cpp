@@ -718,10 +718,7 @@ LWECiphertext BinFHEScheme::EvalFuncCancelSign(const std::shared_ptr<BinFHECrypt
 
     // B is simply
     auto ctQ=BootstrapFunc(params, EK, ct1, fLUT, dq, true);
-    std::cout<<ctQ->GetModulus().ConvertToInt()<<std::endl;
-    for(int i=0;i<10;i++){
-        std::cout<<"CPU ctQ A: "<<i<<": "<<ctQ->GetA().at(i)<<std::endl;
-    }
+
     // evaluate the function anyway, yielding (-1)^beta*f(m)
     auto ct2 =
         LWEscheme->ModSwitch(qfrom, ctQ);  // NOTE: return raw ciphertext
@@ -3213,9 +3210,6 @@ LWECiphertext BinFHEScheme::BootstrapCtxt(const std::shared_ptr<BinFHECryptoPara
     accVec[1].SetFormat(Format::COEFFICIENT);
 
     auto ctExt = std::make_shared<LWECiphertextImpl>(std::move(accVec[0].GetValues()), std::move(accVec[1][0]));
-        for(size_t j=0;j<ctExt->GetA().GetLength();j++){
-            std::cout<<ctExt->GetA()[j]<<" ";
-        }std::cout<<std::endl;
     if (raw)
         return ctExt;
     auto& LWEParams = params->GetLWEParams();

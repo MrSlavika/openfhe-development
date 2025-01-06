@@ -588,6 +588,24 @@ LWECiphertext BootstrapCtxt(const std::shared_ptr<BinFHECryptoParams> params, co
                             ConstLWECiphertext ct, ConstRLWECiphertext tv, const NativeInteger fmod,
                             bool raw = false, bool ms = true) const;
 
+/**
+ * BFV multiplication between two RLWE ciphertexts
+ *
+ * @param params BinFHE scheme parameter
+ * @param EK RGSWBTKey
+ * @param ct1 RLWE(Q/p*m1)
+ * @param ct2 RLWE(Q/p*m2)
+ * @param p plaintext modulus
+ * @return RLWE(Q/p*m1m2)
+*/
+RLWECiphertext BFVMult(const std::shared_ptr<BinFHECryptoParams> params, const RingGSWBTKey& EK,
+                       const RLWECiphertext& ct1, const RLWECiphertext& ct2, uint32_t p) const;
+
+/**
+ * Extract the LWE ciphertext corresponding to X^pos from RLWE ciphertext
+*/
+LWECiphertext ManualExtract(ConstRLWECiphertext acc, size_t pos) const;
+
 private:
     /**
    * Core bootstrapping operation
@@ -723,11 +741,6 @@ private:
     LWECiphertext ExtractACC(RLWECiphertext acc) const;
 
     /**
-     * Extract the LWE ciphertext corresponding to X^pos from RLWE ciphertext
-    */
-    LWECiphertext ManualExtract(ConstRLWECiphertext acc, size_t pos) const;
-
-    /**
      * generate the RLWE' ciphertext for multi-value bootstrap or low noise multiplication (encrypting X^m*TV_0*B^i)
      *
      * @param params BinFHE scheme parameter
@@ -773,19 +786,6 @@ private:
     */
     RLWECiphertext InnerProduct(const std::vector<RLWECiphertext>& rlwe_prime,
                                 const std::vector<NativePoly>& decomposed) const;
-
-    /**
-     * BFV multiplication between two RLWE ciphertexts
-     *
-     * @param params BinFHE scheme parameter
-     * @param EK RGSWBTKey
-     * @param ct1 RLWE(Q/p*m1)
-     * @param ct2 RLWE(Q/p*m2)
-     * @param p plaintext modulus
-     * @return RLWE(Q/p*m1m2)
-    */
-    RLWECiphertext BFVMult(const std::shared_ptr<BinFHECryptoParams> params, const RingGSWBTKey& EK,
-                           const RLWECiphertext& ct1, const RLWECiphertext& ct2, uint32_t p) const;
 
     /**
      * Generate BFV relinearization keys
