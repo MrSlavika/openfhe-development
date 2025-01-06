@@ -87,6 +87,12 @@ RingGSWBTKey BinFHEScheme::KeyGen(const std::shared_ptr<BinFHECryptoParams> para
     ek.skey  = std::make_shared<LWEPrivateKeyImpl>(*LWEsk);
     ek.skeyN = std::make_shared<LWEPrivateKeyImpl>(*skN);
 
+    for(int i=0;i<1;i++){
+        for(int j=0;j<2;j++) {
+
+            std::cout <<"cpu: "<<i<<" "<<j<<" 0 :"<<ek.BSkey->GetElements()[i][j][0]->GetElements().at(0).at(0).GetValues().at(0)<<std::endl;
+        }
+    }
     return ek;
 }
 
@@ -649,7 +655,54 @@ LWECiphertext BinFHEScheme::EvalFuncCancelSign(const std::shared_ptr<BinFHECrypt
             "ERROR: ciphertext modulus q needs to be <= ring dimension for arbitrary function evaluation";
         OPENFHE_THROW(not_implemented_error, errMsg);
     }
-
+#ifdef FDFB_DEBUG
+    // evaluate LUT
+    auto fLUThalf = [f, beta, slope, deltain, deltaout, qout, is_signed](NativeInteger x, NativeInteger q,
+                                                                         NativeInteger Q) -> NativeInteger {
+        if (x < q / 4) {
+            double xin;
+            if (x <= beta)
+                xin = 0;
+            else if (x >= q / 4 - beta)
+                xin = q.ConvertToDouble() / 2 - 1;
+            else
+                xin = (x - beta).ConvertToDouble() / slope;
+            auto tmp = static_cast<int64_t>(
+                    std::round(f(xin / deltain) * deltaout * Q.ConvertToDouble() / qout.ConvertToDouble()));
+            tmp %= Q.ConvertToInt();
+            if (tmp < 0)
+                tmp += Q.ConvertToInt();
+            return static_cast<uint64_t>(tmp);
+        }
+        else if (x >= 3 * q / 4) {
+            // NOTE: (q-x-beta) / slope + q/2 = input x, however, since input x has MSB=1, we need to interpret it as a signed number
+            //  i.e. actual x = input x - q = (q-x-beta)/slope - q/2
+            double xin;
+            if (x <= 3 * q / 4 + beta)
+                xin = -1;  // q-1
+            else if (x >= q - beta)
+                xin = -(q.ConvertToDouble()) / 2;  // q/2 - q
+            else
+                xin = (q - x - beta).ConvertToDouble() / slope - q.ConvertToDouble() / 2;
+            if (!is_signed)
+                xin += q.ConvertToDouble();
+            auto tmp = static_cast<int64_t>(
+                    std::round(f(xin / deltain) * deltaout * Q.ConvertToDouble() / qout.ConvertToDouble()));
+            tmp %= Q.ConvertToInt();
+            if (tmp < 0)
+                tmp += Q.ConvertToInt();
+            return static_cast<uint64_t>(tmp);
+        }
+        else
+            OPENFHE_THROW(openfhe_error, "this branch should not have been reached");
+    };
+    auto fLUT = [fLUThalf](NativeInteger x, NativeInteger q, NativeInteger Q) -> NativeInteger {
+        if (x < q / 4 || x >= 3 * q / 4)
+            return fLUThalf(x, q, Q);
+        else
+            return (Q - fLUThalf((x + q / 2).Mod(q), q, Q)).Mod(Q);
+    };
+#else
     auto fLUT = [LUT, p](NativeInteger x, NativeInteger q, NativeInteger Q) -> NativeInteger {
         if (x < q / 2)
             return (LUT[(2 * x * p / q).ConvertToInt()] * Q / 2 + p / 2) /
@@ -657,14 +710,21 @@ LWECiphertext BinFHEScheme::EvalFuncCancelSign(const std::shared_ptr<BinFHECrypt
         else
             return (Q - (LUT[(2 * (x - q / 2) * p / q).ConvertToInt()] * Q / 2 + p / 2) / p).Mod(Q);
     };
-
+#endif
     LWEscheme->EvalAddConstEq(ct1, half_gap);
     // raise the modulus of ct1 : q -> 2q
     NativeInteger dq = q << 1;
     ct1->GetA().SetModulus(dq);  // B is simply a NativeInteger without a modulus, so only A is handled here
+
+    // B is simply
+    auto ctQ=BootstrapFunc(params, EK, ct1, fLUT, dq, true);
+    std::cout<<ctQ->GetModulus().ConvertToInt()<<std::endl;
+    for(int i=0;i<10;i++){
+        std::cout<<"CPU ctQ A: "<<i<<": "<<ctQ->GetA().at(i)<<std::endl;
+    }
     // evaluate the function anyway, yielding (-1)^beta*f(m)
     auto ct2 =
-        LWEscheme->ModSwitch(qfrom, BootstrapFunc(params, EK, ct1, fLUT, dq, true));  // NOTE: return raw ciphertext
+        LWEscheme->ModSwitch(qfrom, ctQ);  // NOTE: return raw ciphertext
 
     // let ct be the encryption of (-1)^beta*f(m)
     // we need to set TV = -(-1)^beta*f(m) * (1+X+...+X^(N-1)), which corresponds to +: ct_pos, -: ct_neg
@@ -3067,6 +3127,8 @@ RLWECiphertext BinFHEScheme::BootstrapFuncCore(const std::shared_ptr<BinFHECrypt
     return acc;
 }
 
+
+
 template <typename Func>
 LWECiphertext BinFHEScheme::BootstrapFunc(const std::shared_ptr<BinFHECryptoParams> params, const RingGSWBTKey& EK,
                                           ConstLWECiphertext ct, const Func f, const NativeInteger fmod, bool raw,
@@ -3143,7 +3205,7 @@ LWECiphertext BinFHEScheme::BootstrapCtxt(const std::shared_ptr<BinFHECryptoPara
                                           bool raw, bool ms) const {
     auto acc = BootstrapCtxtCore(params, EK.BSkey, ct, tv);
 
-    std::vector<NativePoly>& accVec = acc->GetElements();
+    auto accVec=acc->GetElements();
     // the accumulator result is encrypted w.r.t. the transposed secret key
     // we can transpose "a" to get an encryption under the original secret key
     accVec[0] = accVec[0].Transpose();
@@ -3151,6 +3213,9 @@ LWECiphertext BinFHEScheme::BootstrapCtxt(const std::shared_ptr<BinFHECryptoPara
     accVec[1].SetFormat(Format::COEFFICIENT);
 
     auto ctExt = std::make_shared<LWECiphertextImpl>(std::move(accVec[0].GetValues()), std::move(accVec[1][0]));
+        for(size_t j=0;j<ctExt->GetA().GetLength();j++){
+            std::cout<<ctExt->GetA()[j]<<" ";
+        }std::cout<<std::endl;
     if (raw)
         return ctExt;
     auto& LWEParams = params->GetLWEParams();

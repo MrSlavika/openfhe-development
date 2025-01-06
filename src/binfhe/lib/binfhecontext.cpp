@@ -119,8 +119,7 @@ void BinFHEContext::GenerateBinFHEContext(BINFHE_PARAMSET set, bool arbFunc, uin
     m_params           = std::make_shared<BinFHECryptoParams>(lweparams, rgswparams);
     m_binfhescheme     = std::make_shared<BinFHEScheme>(method);
     m_timeOptimization = timeOptimization;
-    auto p=m_params->GetRingGSWParams()->GetP().ConvertToInt();
-    m_half_gap      = p > 0 ? (q + p) / (2 * p) : 64;
+    m_half_gap      = 128;
 }
 
 void BinFHEContext::GenerateBinFHEContext(BINFHE_PARAMSET set, BINFHE_METHOD method) {
@@ -425,6 +424,7 @@ LWECiphertext BinFHEContext::EvalFuncBFV(ConstLWECiphertext ct, const std::vecto
     NativeInteger beta = GetBetaPrecise();
     return m_binfhescheme->EvalFuncBFV(m_params, m_BTKey, ct, LUT, beta, deltain, deltaout, qout, f);
 }
+
 
 LWECiphertext BinFHEContext::EvalFuncWoPPBS1(ConstLWECiphertext ct, const std::vector<NativeInteger>& LUT,
                                              double deltain, double deltaout, NativeInteger qout,

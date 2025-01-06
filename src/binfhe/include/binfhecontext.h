@@ -690,7 +690,7 @@ public:
     }
 
     NativeInteger GetBeta() const {
-        return m_half_gap;
+        return 64;
     }
 
     // precise beta (bootstrapping error is close to rescaling error)
@@ -721,7 +721,7 @@ private:
     // precise beta
     uint32_t m_beta_precise = 55;  // for standard params, beta_precise = 55
     // half gap
-    uint32_t m_half_gap = 0;
+    uint32_t m_half_gap = 64;
 
 };
 }  // namespace lbcrypto
