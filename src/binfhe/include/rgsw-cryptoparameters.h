@@ -111,8 +111,9 @@ public:
                 m_P = 1038337;
             else if (m_Q == 4169729)
                 m_P = 268369921;
-            else
-                throw std::invalid_argument("Unexpected modulus Q for composite NTT");
+            else{
+                //throw std::invalid_argument("Unexpected modulus Q for composite NTT");
+                }
             m_PQ                  = m_P * m_Q;
             m_compositePolyParams = std::make_shared<ILNativeParams>(2 * N, m_PQ);
             auto logPQ{log(m_PQ.ConvertToDouble())};
@@ -336,6 +337,9 @@ public:
 
     int IsCompositeNTT() const {
         return m_compositeNTT;
+    }
+    void SetCompositeNTT(bool compositeNTT){
+        m_compositeNTT=compositeNTT;
     }
 
     bool operator==(const RingGSWCryptoParams& other) const {

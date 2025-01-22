@@ -59,13 +59,15 @@ void BinFHEContext::GenerateBinFHEContext(uint32_t n, uint32_t N, const NativeIn
                                           uint32_t baseGMV, uint32_t beta_precise, uint32_t p,
                                           const std::vector<uint32_t>& baseGs, uint32_t pkkey_flags, bool multithread,
                                           const NativeInteger& P, uint32_t baseRL, BINFHE_METHOD method) {
+
     auto lweparams  = std::make_shared<LWECryptoParams>(n, N, q, Q, qKS, std, baseKS);
     auto rgswparams = std::make_shared<RingGSWCryptoParams>(N, Q, q, baseG, baseR, method, std, false, basePK, qfrom,
-                                                            baseG0, baseGMV, baseGs, pkkey_flags, P, baseRL);
+                                                            baseG0, baseGMV, baseGs, pkkey_flags,  P, baseRL);
     m_params        = std::make_shared<BinFHECryptoParams>(lweparams, rgswparams, multithread);
     m_binfhescheme  = std::make_shared<BinFHEScheme>(method);
     m_beta_precise  = beta_precise;  // FIXME: still kind of ugly... this property should belong to a single EK
     m_half_gap      = p > 0 ? (q.ConvertToInt() + p) / (2 * p) : 64;
+    //rgswparams->SetCompositeNTT(true);
 }
 
 void BinFHEContext::GenerateBinFHEContext(BINFHE_PARAMSET set, bool arbFunc, uint32_t logQ, int64_t N,

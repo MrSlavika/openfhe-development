@@ -538,8 +538,9 @@ LWECiphertext BinFHEScheme::EvalFuncCompress(const std::shared_ptr<BinFHECryptoP
     alpha += (alpha & 1);
     if ((alpha / 2 < beta) || (q / 4 - (p - 1) * alpha / 2 < beta)) {
         alpha -= 2;
-        if ((alpha / 2 < beta) || (q / 4 - (p - 1) * alpha / 2 < beta))
-            OPENFHE_THROW(openfhe_error, "plaintext modulus p too large, compression cannot be done");
+        if ((alpha / 2 < beta) || (q / 4 - (p - 1) * alpha / 2 < beta)) {
+            //OPENFHE_THROW(openfhe_error, "plaintext modulus p too large, compression cannot be done");
+        }
     }
 
     // computation
@@ -3298,7 +3299,7 @@ RLWESwitchingKey BinFHEScheme::FunctionalKeySwitchGen(const std::shared_ptr<BinF
     for (size_t i = 0; i < dim_in; ++i) {
         std::vector<std::vector<NativeVector>> vector1A(basePK);
         std::vector<std::vector<NativeVector>> vector1B(basePK);
-        for (size_t j = 1; j < basePK; ++j) {  // NOTE: skip j = 0
+        for (size_t j = 0; j < basePK; ++j) {  // NOTE: skip j = 0
             std::vector<NativeVector> vector2A(digitCount);
             std::vector<NativeVector> vector2B(digitCount);
             for (size_t k = 0; k < digitCount; ++k) {

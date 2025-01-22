@@ -690,7 +690,7 @@ public:
     }
 
     NativeInteger GetBeta() const {
-        return 64;
+        return NativeInteger(64);;
     }
 
     // precise beta (bootstrapping error is close to rescaling error)
