@@ -87,12 +87,6 @@ RingGSWBTKey BinFHEScheme::KeyGen(const std::shared_ptr<BinFHECryptoParams> para
     ek.skey  = std::make_shared<LWEPrivateKeyImpl>(*LWEsk);
     ek.skeyN = std::make_shared<LWEPrivateKeyImpl>(*skN);
 
-    for(int i=0;i<1;i++){
-        for(int j=0;j<2;j++) {
-
-            std::cout <<"cpu: "<<i<<" "<<j<<" 0 :"<<ek.BSkey->GetElements()[i][j][0]->GetElements().at(0).at(0).GetValues().at(0)<<std::endl;
-        }
-    }
     return ek;
 }
 

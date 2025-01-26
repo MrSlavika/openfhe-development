@@ -58,11 +58,11 @@ void BinFHEContext::GenerateBinFHEContext(uint32_t n, uint32_t N, const NativeIn
                                           uint32_t baseR, uint32_t basePK, const NativeInteger& qfrom, uint32_t baseG0,
                                           uint32_t baseGMV, uint32_t beta_precise, uint32_t p,
                                           const std::vector<uint32_t>& baseGs, uint32_t pkkey_flags, bool multithread,
-                                          const NativeInteger& P, uint32_t baseRL, BINFHE_METHOD method) {
+                                          const NativeInteger& P, uint32_t baseRL, BINFHE_METHOD method,size_t use_composite) {
 
     auto lweparams  = std::make_shared<LWECryptoParams>(n, N, q, Q, qKS, std, baseKS);
     auto rgswparams = std::make_shared<RingGSWCryptoParams>(N, Q, q, baseG, baseR, method, std, false, basePK, qfrom,
-                                                            baseG0, baseGMV, baseGs, pkkey_flags,  P, baseRL);
+                                                            baseG0, baseGMV, baseGs, pkkey_flags,  P, baseRL,10,use_composite);
     m_params        = std::make_shared<BinFHECryptoParams>(lweparams, rgswparams, multithread);
     m_binfhescheme  = std::make_shared<BinFHEScheme>(method);
     m_beta_precise  = beta_precise;  // FIXME: still kind of ugly... this property should belong to a single EK

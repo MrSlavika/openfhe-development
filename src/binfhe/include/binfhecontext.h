@@ -124,7 +124,7 @@ public:
                                uint32_t basePK, const NativeInteger& qfrom, uint32_t baseG0, uint32_t baseGMV,
                                uint32_t beta_precise, uint32_t p, const std::vector<uint32_t>& baseGs,
                                uint32_t pkkey_flags, bool multithread, const NativeInteger& P, uint32_t baseRL,
-                               BINFHE_METHOD method = GINX);
+                               BINFHE_METHOD method = GINX,size_t use_composite=0);
 
     /**
    * Creates a crypto context using custom parameters.
