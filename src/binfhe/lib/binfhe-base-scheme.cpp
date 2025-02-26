@@ -862,9 +862,9 @@ LWECiphertext BinFHEScheme::EvalFuncSelect(const std::shared_ptr<BinFHECryptoPar
     };
 
     LWECiphertext ct_pos, ct_neg, ct_sgn;
-    use_multi_value_bts= false;
-    /**
-    if (false) {
+    use_multi_value_bts= true;
+
+    if (true) {
         auto rlwe_prime = PrepareRLWEPrime(params, EK, ct1, beta, p, false);  // NOTE: beta here
 
         NativeVector tv1_pos(N, p);
@@ -925,7 +925,8 @@ LWECiphertext BinFHEScheme::EvalFuncSelect(const std::shared_ptr<BinFHECryptoPar
        // ct_sgn = LWEscheme->KeySwitch(LWEParams, EK.KSkey, ct_sgn);
         //ct_sgn = LWEscheme->ModSwitch(q, ct_sgn);  // ct_sgn is in (-3q/4, 0) when msb = 1, and in (0, 4/q) when msb = 0
     }
-*/
+
+    /**
     ct_pos = BootstrapFunc(params, EK, ct1, fLUTpos, p, true);
     ct_neg = BootstrapFunc(params, EK, ct1, fLUTneg, p, true);
     ct_sgn = BootstrapFunc(params, EK, ct1, fLUTsgn, p, true);
@@ -933,6 +934,7 @@ LWECiphertext BinFHEScheme::EvalFuncSelect(const std::shared_ptr<BinFHECryptoPar
     ct_sgn = LWEscheme->ModSwitch(qKS, ct_sgn);
     ct_sgn = LWEscheme->KeySwitch(LWEParams, EK.KSkey, ct_sgn);
     ct_sgn = LWEscheme->ModSwitch(q, ct_sgn);  // ct_sgn is in (-3q/4, 0) when msb = 1, and in (0, 4/q) when msb = 0
+     */
     // functional KS
     auto packed_tv =
         FunctionalKeySwitch(params, EK.PKkey_half, N / 2,
