@@ -104,6 +104,71 @@ public:
     RingGSWBTKey KeyGen(const std::shared_ptr<BinFHECryptoParams> params, ConstLWEPrivateKey LWEsk,
                         ConstLWEPrivateKey skN, RingGSWBTKey* ref) const;
 
+
+    /**
+     * generate the RLWE' ciphertext for multi-value bootstrap or low noise multiplication (encrypting X^m*TV_0*B^i)
+     *
+     * @param params BinFHE scheme parameter
+     * @param ct input LWE ciphertext as the LUT index (we require that ct is already 'unsigned')
+     * @param beta bound of e_bt
+     * @param p plaintext modulus
+     * @param FDFB when set to true, generate RLWE' ciphertext for FDFB multi-value bootstrap (encrypting sgn(m)*X^m*TV_0*B^i and X^m*TV_0*B^i)
+    */
+    std::vector<RLWECiphertext> PrepareRLWEPrime(const std::shared_ptr<BinFHECryptoParams> params,
+                                                 const RingGSWBTKey& EK, ConstLWECiphertext ct, NativeInteger beta,
+                                                 size_t p, bool FDFB) const;
+
+    /**
+     * perform batch selection.
+     * first ct will be bootstrapped to create an encryption of narrow-ranged [sgn], then this ciphertext is used to blind rotate a test vector
+     *
+     * @param params BinFHE scheme parameter
+     * @param ct input LWE ciphertext as the selector (we require that ct is already 'unsigned')
+     * @param beta bound of e_bt
+     * @param pn_values vector of (pos_val, neg_val) pairs modulo Q, indicating the values to be selected when ct encrypts positive / negative message
+     *
+     * @return vector of selected LWE ciphertexts under (Q,N)
+    */
+    std::vector<LWECiphertext> BatchSelect(const std::shared_ptr<BinFHECryptoParams> params, const RingGSWBTKey& EK,
+                                           ConstLWECiphertext ct, NativeInteger beta,
+                                           const std::vector<std::pair<NativeInteger, NativeInteger>>& pn_values) const;
+
+    /**
+     * sign-decompose a polynomial using base B
+     *
+     * @param poly input polynomial to decompose
+     * @param q the inner modulus for poly (i.e. we will mult poly by Q/q*..., so both q and Q can be viewed as poly's modulus)
+     * @param B base for decomposition
+    */
+    std::vector<NativePoly> SignedDecomp(const std::shared_ptr<BinFHECryptoParams> params, const NativePoly& poly,
+                                         size_t q, size_t B) const;
+
+    /**
+     * inner product between RLWE' and decomposed polynomial
+     *
+     * @param rlwe_prime RLWE' ciphertext
+     * @param decomposed decomposed polynomial
+    */
+    RLWECiphertext InnerProduct(const std::vector<RLWECiphertext>& rlwe_prime,
+                                const std::vector<NativePoly>& decomposed) const;
+
+    /**
+     * Generate BFV relinearization keys
+     *
+     * @param params BinFHE scheme parameters
+     * @param skNTT RLWE secret key in NTT form
+     * @return an RLWE' ciphertext encrypting skNTT
+    */
+    LWECiphertext ExtractACC(RLWECiphertext acc) const;
+    std::shared_ptr<std::vector<RLWECiphertext>> GenBFVRelinKeys(const std::shared_ptr<BinFHECryptoParams> params,
+                                                                 const NativePoly& skNTT) const;
+
+    NativeVector ComputeTV1(const NativeVector& tv) const;
+
+    void inspect_lwe_ctxt(const std::shared_ptr<BinFHECryptoParams> params, const RingGSWBTKey& EK, uint32_t p,
+                          ConstLWECiphertext ct, std::string name) const;
+
+    int64_t inspect_lwe_ptxt(LWEPlaintext ptxt, uint32_t p, NativeInteger mod) const;
     /**
    * Evaluates a binary gate (calls bootstrapping as a subroutine)
    *
@@ -738,71 +803,8 @@ private:
      * @param acc input RLWE ciphertext
      * NOTE: this function modifies ct
     */
-    LWECiphertext ExtractACC(RLWECiphertext acc) const;
 
-    /**
-     * generate the RLWE' ciphertext for multi-value bootstrap or low noise multiplication (encrypting X^m*TV_0*B^i)
-     *
-     * @param params BinFHE scheme parameter
-     * @param ct input LWE ciphertext as the LUT index (we require that ct is already 'unsigned')
-     * @param beta bound of e_bt
-     * @param p plaintext modulus
-     * @param FDFB when set to true, generate RLWE' ciphertext for FDFB multi-value bootstrap (encrypting sgn(m)*X^m*TV_0*B^i and X^m*TV_0*B^i)
-    */
-    std::vector<RLWECiphertext> PrepareRLWEPrime(const std::shared_ptr<BinFHECryptoParams> params,
-                                                 const RingGSWBTKey& EK, ConstLWECiphertext ct, NativeInteger beta,
-                                                 size_t p, bool FDFB) const;
 
-    /**
-     * perform batch selection.
-     * first ct will be bootstrapped to create an encryption of narrow-ranged [sgn], then this ciphertext is used to blind rotate a test vector
-     *
-     * @param params BinFHE scheme parameter
-     * @param ct input LWE ciphertext as the selector (we require that ct is already 'unsigned')
-     * @param beta bound of e_bt
-     * @param pn_values vector of (pos_val, neg_val) pairs modulo Q, indicating the values to be selected when ct encrypts positive / negative message
-     *
-     * @return vector of selected LWE ciphertexts under (Q,N)
-    */
-    std::vector<LWECiphertext> BatchSelect(const std::shared_ptr<BinFHECryptoParams> params, const RingGSWBTKey& EK,
-                                           ConstLWECiphertext ct, NativeInteger beta,
-                                           const std::vector<std::pair<NativeInteger, NativeInteger>>& pn_values) const;
-
-    /**
-     * sign-decompose a polynomial using base B
-     *
-     * @param poly input polynomial to decompose
-     * @param q the inner modulus for poly (i.e. we will mult poly by Q/q*..., so both q and Q can be viewed as poly's modulus)
-     * @param B base for decomposition
-    */
-    std::vector<NativePoly> SignedDecomp(const std::shared_ptr<BinFHECryptoParams> params, const NativePoly& poly,
-                                         size_t q, size_t B) const;
-
-    /**
-     * inner product between RLWE' and decomposed polynomial
-     *
-     * @param rlwe_prime RLWE' ciphertext
-     * @param decomposed decomposed polynomial
-    */
-    RLWECiphertext InnerProduct(const std::vector<RLWECiphertext>& rlwe_prime,
-                                const std::vector<NativePoly>& decomposed) const;
-
-    /**
-     * Generate BFV relinearization keys
-     *
-     * @param params BinFHE scheme parameters
-     * @param skNTT RLWE secret key in NTT form
-     * @return an RLWE' ciphertext encrypting skNTT
-    */
-    std::shared_ptr<std::vector<RLWECiphertext>> GenBFVRelinKeys(const std::shared_ptr<BinFHECryptoParams> params,
-                                                                 const NativePoly& skNTT) const;
-
-    NativeVector ComputeTV1(const NativeVector& tv) const;
-
-    void inspect_lwe_ctxt(const std::shared_ptr<BinFHECryptoParams> params, const RingGSWBTKey& EK, uint32_t p,
-                          ConstLWECiphertext ct, std::string name) const;
-
-    int64_t inspect_lwe_ptxt(LWEPlaintext ptxt, uint32_t p, NativeInteger mod) const;
 
 protected:
     std::shared_ptr<LWEEncryptionScheme> LWEscheme=std::make_shared<LWEEncryptionScheme>();

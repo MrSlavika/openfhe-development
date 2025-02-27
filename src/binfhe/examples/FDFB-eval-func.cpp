@@ -669,7 +669,7 @@ int main(int argc, char **argv)
                                             param_set.extra); // NOTE: extra = pmid here
                 break;
             case COMP: // TODO: more f_property
-                ct_f = cc.EvalFuncComp(ct1, lut, param_set.deltain, param_set.deltaout, param_set.qout, param_set.f, 
+                ct_f = cc.EvalFuncComp(ct1, lut, param_set.deltain, param_set.deltaout, param_set.qout, param_set.f,
                     f_property, shift, param_set.baseGs.size() > 0 ? 1 << 27: param_set.baseG);
                 break;
             case BFVMULT:
