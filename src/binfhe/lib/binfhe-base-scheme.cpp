@@ -3289,7 +3289,7 @@ RLWESwitchingKey BinFHEScheme::FunctionalKeySwitchGen(const std::shared_ptr<BinF
     std::vector<std::vector<std::vector<NativeVector>>> resultVecA(dim_in);
     std::vector<std::vector<std::vector<NativeVector>>> resultVecB(dim_in);
 
-    std::cout << "i j k = " << dim_in << ", " << basePK << ", " << digitCount << '\n';
+    //std::cout << "i j k = " << dim_in << ", " << basePK << ", " << digitCount << '\n';
 
 #pragma omp parallel for
     for (size_t i = 0; i < dim_in; ++i) {
