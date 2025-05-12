@@ -727,224 +727,210 @@ LWECiphertext BinFHEScheme::EvalFuncCancelSign(const std::shared_ptr<BinFHECrypt
     return ct3;
 }
 
-LWECiphertext BinFHEScheme::EvalFuncSelect(const std::shared_ptr<BinFHECryptoParams> params, const RingGSWBTKey& EK,
-                                           ConstLWECiphertext ct, const std::vector<NativeInteger>& LUT,
-                                           const NativeInteger beta, double deltain, double deltaout,
-                                           NativeInteger qout, double (*f)(double m), const RingGSWBTKey& EK_small,
-                                           uint32_t baseG_small) const {
-    // always full range
-    auto LWEParams   = params->GetLWEParams();
-    auto RGSWparams  = params->GetRingGSWParams();
-    auto Q           = LWEParams->GetQ();
-    auto N           = LWEParams->GetN();
-    auto qKS         = LWEParams->GetqKS();
-    auto baseGMV     = RGSWparams->GetBaseGMV();
-    auto polyparams  = params->GetRingGSWParams()->GetPolyParams();
-    bool multithread = params->GetMultithread();
+    LWECiphertext BinFHEScheme::EvalFuncSelect(const std::shared_ptr<BinFHECryptoParams> params, const RingGSWBTKey& EK,
+                                               ConstLWECiphertext ct, const std::vector<NativeInteger>& LUT,
+                                               const NativeInteger beta, double deltain, double deltaout,
+                                               NativeInteger qout, double (*f)(double m), const RingGSWBTKey& EK_small,
+                                               uint32_t baseG_small) const {
+        // always full range
+        auto LWEParams   = params->GetLWEParams();
+        auto RGSWparams  = params->GetRingGSWParams();
+        auto Q           = LWEParams->GetQ();
+        auto N           = LWEParams->GetN();
+        auto qKS         = LWEParams->GetqKS();
+        auto baseGMV     = RGSWparams->GetBaseGMV();
+        auto polyparams  = params->GetRingGSWParams()->GetPolyParams();
+        bool multithread = params->GetMultithread();
 
-    auto ct1                 = std::make_shared<LWECiphertextImpl>(*ct);
-    bool use_multi_value_bts = baseGMV > 0;
+        auto ct1                 = std::make_shared<LWECiphertextImpl>(*ct);
+        bool use_multi_value_bts = baseGMV > 0;
 
-    NativeInteger q = ct->GetModulus();
-    if (f !=
-        nullptr) {  // NOTE: for CKKS-extracted LWE ciphertext, we do not use multi-value bootstrap to accelerate it, since the error analysis is quite tricky and function dependant
-        if (use_multi_value_bts)
-            OPENFHE_THROW(
-                openfhe_error,
-                "using multi-value bootstrap to accelerate FDFB-Select on CKKS-extracted ciphertexts is not supported");
-        if (qout == 0)
-            qout = q;
+        NativeInteger q = ct->GetModulus();
+        if (f !=
+            nullptr) {  // NOTE: for CKKS-extracted LWE ciphertext, we do not use multi-value bootstrap to accelerate it, since the error analysis is quite tricky and function dependant
+            if (use_multi_value_bts)
+                OPENFHE_THROW(
+                        openfhe_error,
+                        "using multi-value bootstrap to accelerate FDFB-Select on CKKS-extracted ciphertexts is not supported");
+            if (qout == 0)
+                qout = q;
 
-        auto fLUTpos = [f, deltain, deltaout, qout](NativeInteger x, NativeInteger q,
-                                                    NativeInteger Q) -> NativeInteger {
-            if (x < q / 2) {
-                int64_t xin  = x.ConvertToInt();
-                int64_t fval = static_cast<int64_t>(
-                    std::round(f(xin / deltain) * deltaout / qout.ConvertToDouble() * Q.ConvertToDouble()));
-                fval %= Q.ConvertToInt();
-                if (fval < 0)
-                    fval += Q.ConvertToInt();
-                return fval;
-            }
-            else
-                OPENFHE_THROW(openfhe_error, "this branch should not have been reached");
-        };
-        auto fLUTneg = [f, deltain, deltaout, qout](NativeInteger x, NativeInteger q,
-                                                    NativeInteger Q) -> NativeInteger {
-            if (x >= q / 2) {
-                int64_t xin  = x.ConvertToInt() - q.ConvertToInt();
-                int64_t fval = static_cast<int64_t>(
-                    std::round(f(xin / deltain) * deltaout / qout.ConvertToDouble() * Q.ConvertToDouble()));
-                fval %= Q.ConvertToInt();
-                if (fval < 0)
-                    fval += Q.ConvertToInt();
-                return fval;
-            }
-            else
-                OPENFHE_THROW(openfhe_error, "this branch should not have been reached");
-        };
-        auto fLUTposfull = [fLUTpos](NativeInteger x, NativeInteger q, NativeInteger Q) -> NativeInteger {
-            if (x < q / 2)
-                return fLUTpos(x, q, Q);
-            else
-                return (Q - fLUTpos((x + q / 2).Mod(q), q, Q)).Mod(Q);
-        };
-        auto fLUTnegfull = [fLUTneg](NativeInteger x, NativeInteger q, NativeInteger Q) -> NativeInteger {
-            if (x >= q / 2)
-                return fLUTneg(x, q, Q);
-            else
-                return (Q - fLUTneg((x + q / 2).Mod(q), q, Q)).Mod(Q);
-        };
-        auto fLUTsgn = [](NativeInteger x, NativeInteger q, NativeInteger Q) -> NativeInteger {
-            if (x < q / 2)
-                return Q / 8;
-            else
-                return Q - Q / 8;
-        };
-        LWECiphertext ct_pos, ct_neg, ct_sgn;
-        if (multithread) {
+            auto fLUTpos = [f, deltain, deltaout, qout](NativeInteger x, NativeInteger q,
+                                                        NativeInteger Q) -> NativeInteger {
+                if (x < q / 2) {
+                    int64_t xin  = x.ConvertToInt();
+                    int64_t fval = static_cast<int64_t>(
+                            std::round(f(xin / deltain) * deltaout / qout.ConvertToDouble() * Q.ConvertToDouble()));
+                    fval %= Q.ConvertToInt();
+                    if (fval < 0)
+                        fval += Q.ConvertToInt();
+                    return fval;
+                }
+                else
+                    OPENFHE_THROW(openfhe_error, "this branch should not have been reached");
+            };
+            auto fLUTneg = [f, deltain, deltaout, qout](NativeInteger x, NativeInteger q,
+                                                        NativeInteger Q) -> NativeInteger {
+                if (x >= q / 2) {
+                    int64_t xin  = x.ConvertToInt() - q.ConvertToInt();
+                    int64_t fval = static_cast<int64_t>(
+                            std::round(f(xin / deltain) * deltaout / qout.ConvertToDouble() * Q.ConvertToDouble()));
+                    fval %= Q.ConvertToInt();
+                    if (fval < 0)
+                        fval += Q.ConvertToInt();
+                    return fval;
+                }
+                else
+                    OPENFHE_THROW(openfhe_error, "this branch should not have been reached");
+            };
+            auto fLUTposfull = [fLUTpos](NativeInteger x, NativeInteger q, NativeInteger Q) -> NativeInteger {
+                if (x < q / 2)
+                    return fLUTpos(x, q, Q);
+                else
+                    return (Q - fLUTpos((x + q / 2).Mod(q), q, Q)).Mod(Q);
+            };
+            auto fLUTnegfull = [fLUTneg](NativeInteger x, NativeInteger q, NativeInteger Q) -> NativeInteger {
+                if (x >= q / 2)
+                    return fLUTneg(x, q, Q);
+                else
+                    return (Q - fLUTneg((x + q / 2).Mod(q), q, Q)).Mod(Q);
+            };
+            auto fLUTsgn = [](NativeInteger x, NativeInteger q, NativeInteger Q) -> NativeInteger {
+                if (x < q / 2)
+                    return Q / 8;
+                else
+                    return Q - Q / 8;
+            };
+            LWECiphertext ct_pos, ct_neg, ct_sgn;
+            if (multithread) {
 #pragma omp parallel for num_threads(3)
-            for (size_t i = 0; i < 3; i++) {
-                if (i == 0)
-                    ct_pos = BootstrapFunc(params, EK, ct, fLUTposfull, Q, true);
-                else if (i == 1)
-                    ct_neg = BootstrapFunc(params, EK, ct, fLUTnegfull, Q, true);
-                else
-                    ct_sgn = BootstrapFunc(params, EK, ct, fLUTsgn, q);
+                for (size_t i = 0; i < 3; i++) {
+                    if (i == 0)
+                        ct_pos = BootstrapFunc(params, EK, ct, fLUTposfull, Q, true);
+                    else if (i == 1)
+                        ct_neg = BootstrapFunc(params, EK, ct, fLUTnegfull, Q, true);
+                    else
+                        ct_sgn = BootstrapFunc(params, EK, ct, fLUTsgn, q);
+                }
             }
+            else {
+                ct_pos = BootstrapFunc(params, EK, ct, fLUTposfull, Q, true);
+                ct_neg = BootstrapFunc(params, EK, ct, fLUTnegfull, Q, true);
+                ct_sgn = BootstrapFunc(params, EK, ct, fLUTsgn, q);
+            }
+            auto packed_tv =
+                    FunctionalKeySwitch(params, EK.PKkey_half, N / 2,
+                                        {std::make_pair(ct_pos, size_t(3 * N / 2)), std::make_pair(ct_neg, size_t(0))});
+            auto ct_sel = BootstrapCtxt(params, EK, ct_sgn, packed_tv, q, false, false);
+            return LWEscheme->ModSwitch(qout, ct_sel);
+        }
+
+        // now the function to evaluate is a Z_p to Z_p mapping
+        usint p = LUT.size();
+        if (p & 1) {
+            OPENFHE_THROW(openfhe_error, "plaintext modulus p must be even");
+        }
+        usint half_gap = (q.ConvertToInt() + p) / (2 * p);
+        if (half_gap <= beta) {
+            OPENFHE_THROW(openfhe_error, "plaintext modulus p too large");
+        }
+
+        LWEscheme->EvalAddConstEq(ct1, half_gap);
+
+        // NOTE: we don't choose to output Q - LUT[xxx] for negative values, because tv1's can either be viewed modulo Q or modulo p
+        //  if we output p - LUT[xxx], the value of fLUT's will lie in [0,p-1]
+        //  if we output Q - LUT[xxx], the value of fLUT's will iie in [-p+1,p-1], doubling the std of noise
+        // NOTE: the third param is not used, its only usage is to fit into BootstrapFunc's API
+        auto fLUTpos = [LUT, p](NativeInteger x, NativeInteger q, NativeInteger Q) -> NativeInteger {
+            if (x < q / 2)
+                return LUT[(x * p / q).ConvertToInt()];
+            else
+                return (p - LUT[((x - q / 2) * p / q).ConvertToInt()]).Mod(p);
+        };
+        auto fLUTneg = [LUT, p](NativeInteger x, NativeInteger q, NativeInteger Q) -> NativeInteger {
+            if (x >= q / 2)
+                return LUT[(x * p / q).ConvertToInt()];
+            else
+                return (p - LUT[((x + q / 2) * p / q).ConvertToInt()]).Mod(p);
+        };
+        auto fLUTsgn = [p](NativeInteger x, NativeInteger q, NativeInteger Q) -> NativeInteger {
+            if (x <
+                q / 2)  // NOTE: what if 8 does not divide p? A: some more error in the evaluated sign, but won't affect the correctness of FDFB-Select
+                return p / 8;
+            else
+                return p - p / 8;
+        };
+
+        LWECiphertext ct_pos, ct_neg, ct_sgn;
+
+        if (use_multi_value_bts) {
+            auto rlwe_prime = PrepareRLWEPrime(params, EK, ct1, beta, p, false);  // NOTE: beta here
+
+            NativeVector tv1_pos(N, p);
+            NativeVector tv1_neg(N, p);
+            NativeVector tv1_sgn(N, p);
+            for (size_t i = 0, dN = 2 * N; i < N; i++) {
+                auto tmp   = NativeInteger(0).ModSub(i, dN);
+                tv1_pos[i] = fLUTpos(tmp, dN, p);
+                tv1_neg[i] = fLUTneg(tmp, dN, p);
+                tv1_sgn[i] = fLUTsgn(tmp, dN, p);
+            }
+            // TODO: directly find the transition points rather than compute the difference? but the overhead here is negligible compared to blind rotation
+            tv1_pos = ComputeTV1(tv1_pos);
+            tv1_neg = ComputeTV1(tv1_neg);
+            tv1_sgn = ComputeTV1(tv1_sgn);
+            tv1_pos.SwitchModulus(Q);
+            tv1_neg.SwitchModulus(Q);
+            tv1_sgn.SwitchModulus(Q);
+            NativePoly poly_pos(polyparams), poly_neg(polyparams), poly_sgn(polyparams);
+            poly_pos.SetValues(tv1_pos, Format::COEFFICIENT);
+            poly_neg.SetValues(tv1_neg, Format::COEFFICIENT);
+            poly_sgn.SetValues(tv1_sgn, Format::COEFFICIENT);
+
+            auto acc_pos = InnerProduct(rlwe_prime, SignedDecomp(params, poly_pos, 2 * p, baseGMV)),
+                    acc_neg = InnerProduct(rlwe_prime, SignedDecomp(params, poly_neg, 2 * p, baseGMV)),
+                    acc_sgn = InnerProduct(rlwe_prime, SignedDecomp(params, poly_sgn, 2 * p, baseGMV));
+
+            // extract LWE ciphertext
+            ct_pos = ExtractACC(acc_pos);
+            ct_neg = ExtractACC(acc_neg);
+            ct_sgn = ExtractACC(acc_sgn);
+            // bring ct_sgn to (q,n,sk) so that it can be used as the selector for next bootstrapping
+            ct_sgn = LWEscheme->ModSwitch(qKS, ct_sgn);
+            ct_sgn = LWEscheme->KeySwitch(LWEParams, EK.KSkey, ct_sgn);
+            ct_sgn = LWEscheme->ModSwitch(q, ct_sgn);  // ct_sgn is in (-3q/4, 0) when msb = 1, and in (0, 4/q) when msb = 0
         }
         else {
-            ct_pos = BootstrapFunc(params, EK, ct, fLUTposfull, Q, true);
-            ct_neg = BootstrapFunc(params, EK, ct, fLUTnegfull, Q, true);
-            ct_sgn = BootstrapFunc(params, EK, ct, fLUTsgn, q);
+            if (multithread) {
+#pragma omp parallel for num_threads(3)
+                for (size_t i = 0; i < 3; i++) {
+                    if (i == 0)
+                        ct_pos = BootstrapFunc(params, EK, ct1, fLUTpos, p, true);
+                    else if (i == 1)
+                        ct_neg = BootstrapFunc(params, EK, ct1, fLUTneg, p, true);
+                    else
+                        ct_sgn = BootstrapFunc(params, EK, ct1, fLUTsgn, p, true);
+                }
+            }
+            else {
+                ct_pos = BootstrapFunc(params, EK, ct1, fLUTpos, p, true);
+                ct_neg = BootstrapFunc(params, EK, ct1, fLUTneg, p, true);
+                ct_sgn = BootstrapFunc(params, EK, ct1, fLUTsgn, p, true);
+            }
+            ct_sgn = LWEscheme->ModSwitch(qKS, ct_sgn);
+            ct_sgn = LWEscheme->KeySwitch(LWEParams, EK.KSkey, ct_sgn);
+            ct_sgn = LWEscheme->ModSwitch(q, ct_sgn);  // ct_sgn is in (-3q/4, 0) when msb = 1, and in (0, 4/q) when msb = 0
         }
+        // functional KS
         auto packed_tv =
-            FunctionalKeySwitch(params, EK.PKkey_half, N / 2,
-                                {std::make_pair(ct_pos, size_t(3 * N / 2)), std::make_pair(ct_neg, size_t(0))});
-        auto ct_sel = BootstrapCtxt(params, EK, ct_sgn, packed_tv, q, false, false);
-        return LWEscheme->ModSwitch(qout, ct_sel);
+                FunctionalKeySwitch(params, EK.PKkey_half, N / 2,
+                                    {std::make_pair(ct_pos, size_t(3 * N / 2 + 1)), std::make_pair(ct_neg, size_t(1))});
+        auto baseG_bak = RGSWparams->GetBaseG();
+        RGSWparams->Change_BaseG(baseG_small);
+        auto ct_sel = BootstrapCtxt(params, EK_small, ct_sgn, packed_tv, q);
+        RGSWparams->Change_BaseG(baseG_bak);
+        return ct_sel;
     }
-
-    // now the function to evaluate is a Z_p to Z_p mapping
-    usint p = LUT.size();
-    if (p & 1) {
-        OPENFHE_THROW(openfhe_error, "plaintext modulus p must be even");
-    }
-    usint half_gap = (q.ConvertToInt() + p) / (2 * p);
-    if (half_gap <= beta) {
-        OPENFHE_THROW(openfhe_error, "plaintext modulus p too large");
-    }
-
-    LWEscheme->EvalAddConstEq(ct1, half_gap);
-
-    // NOTE: we don't choose to output Q - LUT[xxx] for negative values, because tv1's can either be viewed modulo Q or modulo p
-    //  if we output p - LUT[xxx], the value of fLUT's will lie in [0,p-1]
-    //  if we output Q - LUT[xxx], the value of fLUT's will iie in [-p+1,p-1], doubling the std of noise
-    // NOTE: the third param is not used, its only usage is to fit into BootstrapFunc's API
-    auto fLUTpos = [LUT, p](NativeInteger x, NativeInteger q, NativeInteger Q) -> NativeInteger {
-        if (x < q / 2)
-            return LUT[(x * p / q).ConvertToInt()];
-        else
-            return (p - LUT[((x - q / 2) * p / q).ConvertToInt()]).Mod(p);
-    };
-    auto fLUTneg = [LUT, p](NativeInteger x, NativeInteger q, NativeInteger Q) -> NativeInteger {
-        if (x >= q / 2)
-            return LUT[(x * p / q).ConvertToInt()];
-        else
-            return (p - LUT[((x + q / 2) * p / q).ConvertToInt()]).Mod(p);
-    };
-    auto fLUTsgn = [p](NativeInteger x, NativeInteger q, NativeInteger Q) -> NativeInteger {
-        if (x <
-            q / 2)  // NOTE: what if 8 does not divide p? A: some more error in the evaluated sign, but won't affect the correctness of FDFB-Select
-            return p / 8;
-        else
-            return p - p / 8;
-    };
-
-    LWECiphertext ct_pos, ct_neg, ct_sgn;
-    use_multi_value_bts= true;
-
-    if (true) {
-        auto rlwe_prime = PrepareRLWEPrime(params, EK, ct1, beta, p, false);  // NOTE: beta here
-
-        NativeVector tv1_pos(N, p);
-        NativeVector tv1_neg(N, p);
-        NativeVector tv1_sgn(N, p);
-        for (size_t i = 0, dN = 2 * N; i < N; i++) {
-            auto tmp   = NativeInteger(0).ModSub(i, dN);
-            tv1_pos[i] = fLUTpos(tmp, dN, p);
-            tv1_neg[i] = fLUTneg(tmp, dN, p);
-            tv1_sgn[i] = fLUTsgn(tmp, dN, p);
-        }
-        // TODO: directly find the transition points rather than compute the difference? but the overhead here is negligible compared to blind rotation
-        tv1_pos = ComputeTV1(tv1_pos);
-        tv1_neg = ComputeTV1(tv1_neg);
-        tv1_sgn = ComputeTV1(tv1_sgn);
-        tv1_pos.SwitchModulus(Q);
-        tv1_neg.SwitchModulus(Q);
-        tv1_sgn.SwitchModulus(Q);
-        NativePoly poly_pos(polyparams), poly_neg(polyparams), poly_sgn(polyparams);
-        poly_pos.SetValues(tv1_pos, Format::COEFFICIENT);
-        poly_neg.SetValues(tv1_neg, Format::COEFFICIENT);
-        poly_sgn.SetValues(tv1_sgn, Format::COEFFICIENT);
-
-        auto acc_pos = InnerProduct(rlwe_prime, SignedDecomp(params, poly_pos, 2 * p, baseGMV)),
-             acc_neg = InnerProduct(rlwe_prime, SignedDecomp(params, poly_neg, 2 * p, baseGMV)),
-             acc_sgn = InnerProduct(rlwe_prime, SignedDecomp(params, poly_sgn, 2 * p, baseGMV));
-
-        // extract LWE ciphertext
-        ct_pos = ExtractACC(acc_pos);
-        ct_neg = ExtractACC(acc_neg);
-        ct_sgn = ExtractACC(acc_sgn);
-        // bring ct_sgn to (q,n,sk) so that it can be used as the selector for next bootstrapping
-        ct_sgn = LWEscheme->ModSwitch(qKS, ct_sgn);
-        ct_sgn = LWEscheme->KeySwitch(LWEParams, EK.KSkey, ct_sgn);
-        ct_sgn = LWEscheme->ModSwitch(q, ct_sgn);  // ct_sgn is in (-3q/4, 0) when msb = 1, and in (0, 4/q) when msb = 0
-    }
-    else {
-        if (multithread) {
-//#pragma omp parallel for num_threads(3)
-            for (size_t i = 0; i < 3; i++) {
-                if (i == 0)
-                    ct_pos = BootstrapFunc(params, EK, ct1, fLUTpos, p, true);
-                else if (i == 1)
-                    ct_neg = BootstrapFunc(params, EK, ct1, fLUTneg, p, true);
-                else
-                    ct_sgn = BootstrapFunc(params, EK, ct1, fLUTsgn, p, true);
-            }
-        }
-        else {
-            ct_pos = BootstrapFunc(params, EK, ct1, fLUTpos, p, true);
-            ct_neg = BootstrapFunc(params, EK, ct1, fLUTneg, p, true);
-            ct_sgn = BootstrapFunc(params, EK, ct1, fLUTsgn, p, true);
-        }
-
-
-
-        //ct_sgn = LWEscheme->ModSwitch(qKS, ct_sgn);
-       // ct_sgn = LWEscheme->KeySwitch(LWEParams, EK.KSkey, ct_sgn);
-        //ct_sgn = LWEscheme->ModSwitch(q, ct_sgn);  // ct_sgn is in (-3q/4, 0) when msb = 1, and in (0, 4/q) when msb = 0
-    }
-
-    /**
-    ct_pos = BootstrapFunc(params, EK, ct1, fLUTpos, p, true);
-    ct_neg = BootstrapFunc(params, EK, ct1, fLUTneg, p, true);
-    ct_sgn = BootstrapFunc(params, EK, ct1, fLUTsgn, p, true);
-
-    ct_sgn = LWEscheme->ModSwitch(qKS, ct_sgn);
-    ct_sgn = LWEscheme->KeySwitch(LWEParams, EK.KSkey, ct_sgn);
-    ct_sgn = LWEscheme->ModSwitch(q, ct_sgn);  // ct_sgn is in (-3q/4, 0) when msb = 1, and in (0, 4/q) when msb = 0
-     */
-    // functional KS
-    auto packed_tv =
-        FunctionalKeySwitch(params, EK.PKkey_half, N / 2,
-                            {std::make_pair(ct_pos, size_t(3 * N / 2 + 1)), std::make_pair(ct_neg, size_t(1))});
-    auto baseG_bak = RGSWparams->GetBaseG();
-    RGSWparams->Change_BaseG(baseG_small);
-    auto ct_sel = BootstrapCtxt(params, EK_small, ct_sgn, packed_tv, q);
-    RGSWparams->Change_BaseG(baseG_bak);
-    return ct_sel;
-}
 
 LWECiphertext BinFHEScheme::EvalFuncSelectAlt(const std::shared_ptr<BinFHECryptoParams> params, const RingGSWBTKey& EK,
                                               ConstLWECiphertext ct, const std::vector<NativeInteger>& LUT,
